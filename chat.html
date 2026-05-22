@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="image" href="mate.png">
+    <title>ChatMate</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <button id="logoutBtn" onclick="logout()">Logout</button>
+
+    <aside id="sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-mark">CM</div>
+            <div>
+                <strong>ChatMate</strong>
+                <span>Messages</span>
+            </div>
+        </div>
+
+        <section class="profile-panel">
+            <label class="profile-photo-control" for="profilePhoto">
+                <img id="profilePreview" class="avatar large" src="" alt="Profile photo">
+                <span>Change photo</span>
+            </label>
+            <input type="text" id="profileName" placeholder="Your name">
+            <input type="text" id="profileStatus" placeholder="Status">
+            <input type="file" id="profilePhoto" accept="image/*">
+            <div id="profileUploadStatus" class="profile-upload-status"></div>
+            <button onclick="saveProfile()">Save profile</button>
+        </section>
+
+        <h3>People</h3>
+        <div id="user-list"></div>
+    </aside>
+
+<div class="chat-container">
+    <div class="chat-header">
+        <img id="activeChatPhoto" class="avatar" src="" alt="">
+        <div>
+            <strong id="activeChatName">Choose someone to chat</strong>
+            <span id="activeChatStatus">Select a user from the people list.</span>
+        </div>
+    </div>
+
+    <video id="localVideo" autoplay playsinline></video>
+    <video id="remoteVideo" autoplay playsinline></video>
+
+    <div id="chat-box" aria-live="polite"></div>
+    <div id="typingIndicator"></div>
+
+    <div class="input-area">
+        <button id="mediaBtn" class="media-btn" onclick="toggleMediaPicker()">+</button>
+        <input type="text" id="message" placeholder="Type message" oninput="typing()" onkeydown="handleMessageKey(event)">
+        <button class="send-btn" onclick="sendMessage()">Send</button>
+        <input type="file" id="mediaFile" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.xlsx" style="display:none;"><button onclick="sendMediaFromButton()" id="sendMediaBtn" style="display:none;">Send Media</button>
+    </div>
+
+    <div id="mediaPicker" class="media-picker" hidden>
+        <div class="media-options">
+            <button onclick="pickMediaType('image')">Photo</button>
+            <button onclick="pickMediaType('video')">Video</button>
+            <button onclick="pickMediaType('audio')">Voice</button>
+            <button onclick="pickMediaType('document')">Document</button>
+            <button onclick="closePicker()">Close</button>
+        </div>
+    </div>
+
+</div>
+
+<!-- Firebase -->
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
+
+<script src="firebase-config.js"></script>
+<script src="chat.js"></script>
+
+</body>
+</html>

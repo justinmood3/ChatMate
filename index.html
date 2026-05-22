@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="image" href="mate.png">
+    <title>ChatMate</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="auth-page">
+
+<div class="auth-shell">
+<div class="auth-visual">
+    <div class="brand-mark">CM</div>
+    <h1>ChatMate</h1>
+    <p>Fast private chats with profile status and media sharing.</p>
+</div>
+
+<div class="login-box">
+
+    <h2>ChatMate</h2>
+    <p class="auth-subtitle">Sign in or create a new account.</p>
+
+    <input type="email" id="email" placeholder="Email">
+
+    <input type="password" id="password" placeholder="Password">
+
+    <button onclick="signup()">Sign Up</button>
+
+    <button onclick="login()">Login</button>
+
+    <div class="auth-divider">or</div>
+
+    <input type="tel" id="phone" placeholder="Phone number, e.g. +15551234567">
+
+    <div id="recaptcha-container"></div>
+
+    <button onclick="sendPhoneCode()">Send SMS Code</button>
+
+    <div id="phone-code-area" hidden>
+        <input type="text" id="verificationCode" placeholder="Verification code">
+        <button onclick="verifyPhoneCode()">Verify Phone</button>
+    </div>
+
+</div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+<script src="firebase-config.js"></script>
+
+<script src="auth.js"></script>
+
+</body>
+</html>
