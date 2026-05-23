@@ -359,6 +359,7 @@ auth.onAuthStateChanged((user)=>{
     });
 
     loadMyProfile(user);
+    listenForIncomingCalls(user);
 });
 
 db.ref("users").on("value", (snapshot)=>{
@@ -544,25 +545,325 @@ window.uploadProfilePic = function(file){
 
 let localStream;
 let peerConnection;
+let currentCallId = null;
+let currentCallRef = null;
+let currentCallMode = "video";
+let incomingCallData = null;
+let peerCandidateRef = null;
+let callValueRef = null;
+let callCandidatesRef = null;
+let pendingIceCandidates = [];
 
 const servers = {
     iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
 };
 
-window.startCall = async function(){
-    localStream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true
-    });
+function setCallStatus(message){
+    const status = document.getElementById("callStatus");
+    if(status) status.textContent = message || "";
+}
+
+function showCallPanel(show){
+    const panel = document.getElementById("callPanel");
+    if(panel) panel.hidden = !show;
+}
+
+function showAnswerButton(show){
+    const button = document.getElementById("answerCallBtn");
+    if(button) button.hidden = !show;
+}
+
+function getCallLabel(userId){
+    const profile = usersCache[userId];
+    return getDisplayName(profile) || "Someone";
+}
+
+function stopLocalStream(){
+    if(localStream){
+        localStream.getTracks().forEach((track)=> track.stop());
+        localStream = null;
+    }
+}
+
+function clearCallMedia(){
+    const localVideo = document.getElementById("localVideo");
+    const remoteVideo = document.getElementById("remoteVideo");
+
+    if(localVideo) localVideo.srcObject = null;
+    if(remoteVideo) remoteVideo.srcObject = null;
+}
+
+function detachCallListeners(){
+    if(currentCallRef && callValueRef){
+        currentCallRef.off("value", callValueRef);
+    }
+
+    if(peerCandidateRef && callCandidatesRef){
+        peerCandidateRef.off("child_added", callCandidatesRef);
+    }
+
+    callValueRef = null;
+    callCandidatesRef = null;
+    peerCandidateRef = null;
+}
+
+function resetCallState(){
+    detachCallListeners();
+
+    if(peerConnection){
+        peerConnection.onicecandidate = null;
+        peerConnection.ontrack = null;
+        peerConnection.close();
+        peerConnection = null;
+    }
+
+    stopLocalStream();
+    clearCallMedia();
+    showAnswerButton(false);
+    showCallPanel(false);
+    setCallStatus("");
+    currentCallId = null;
+    currentCallRef = null;
+    incomingCallData = null;
+    pendingIceCandidates = [];
+}
+
+async function startLocalMedia(mode){
+    const constraints = {
+        audio: true,
+        video: mode === "video"
+    };
+
+    localStream = await navigator.mediaDevices.getUserMedia(constraints);
 
     document.getElementById("localVideo").srcObject = localStream;
+    return localStream;
+}
 
+function createCallPeer(callId, peerId){
     peerConnection = new RTCPeerConnection(servers);
 
-    localStream.getTracks().forEach((track)=>{
-        peerConnection.addTrack(track, localStream);
+    peerConnection.ontrack = function(event){
+        const remoteVideo = document.getElementById("remoteVideo");
+        if(remoteVideo){
+            remoteVideo.srcObject = event.streams[0];
+        }
+    };
+
+    peerConnection.onicecandidate = function(event){
+        if(event.candidate && auth.currentUser){
+            db.ref("calls/" + callId + "/candidates/" + auth.currentUser.uid).push(event.candidate.toJSON());
+        }
+    };
+
+    if(localStream){
+        localStream.getTracks().forEach((track)=>{
+            peerConnection.addTrack(track, localStream);
+        });
+    }
+
+    peerCandidateRef = db.ref("calls/" + callId + "/candidates/" + peerId);
+    callCandidatesRef = peerCandidateRef.on("child_added", (snapshot)=>{
+        const candidate = snapshot.val();
+        if(candidate && peerConnection){
+            const iceCandidate = new RTCIceCandidate(candidate);
+
+            if(peerConnection.remoteDescription){
+                peerConnection.addIceCandidate(iceCandidate).catch((error)=>{
+                    console.error("Error adding ICE candidate:", error);
+                });
+            } else {
+                pendingIceCandidates.push(iceCandidate);
+            }
+        }
     });
+
+    return peerConnection;
+}
+
+function flushPendingIceCandidates(){
+    if(!peerConnection || !peerConnection.remoteDescription) return;
+
+    pendingIceCandidates.forEach((candidate)=>{
+        peerConnection.addIceCandidate(candidate).catch((error)=>{
+            console.error("Error adding queued ICE candidate:", error);
+        });
+    });
+
+    pendingIceCandidates = [];
+}
+
+function watchCurrentCall(callId){
+    currentCallRef = db.ref("calls/" + callId);
+    callValueRef = currentCallRef.on("value", async (snapshot)=>{
+        const call = snapshot.val();
+        if(!call){
+            resetCallState();
+            return;
+        }
+
+        if(call.status === "ended" || call.status === "declined"){
+            resetCallState();
+            return;
+        }
+
+        if(call.answer && peerConnection && !peerConnection.currentRemoteDescription){
+            try {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(call.answer));
+                flushPendingIceCandidates();
+                setCallStatus("Connected");
+            } catch(error){
+                console.error("Error setting remote answer:", error);
+            }
+        }
+    });
+}
+
+window.startCall = async function(mode){
+    const user = auth.currentUser;
+
+    if(!user || !currentPeerId){
+        alert("Choose a user to call first.");
+        return;
+    }
+
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+        alert("Calling needs camera/microphone support in this browser.");
+        return;
+    }
+
+    resetCallState();
+
+    currentCallMode = mode === "audio" ? "audio" : "video";
+    currentCallId = getChatId(user.uid, currentPeerId);
+    currentCallRef = db.ref("calls/" + currentCallId);
+
+    showCallPanel(true);
+    showAnswerButton(false);
+    setCallStatus("Calling " + getCallLabel(currentPeerId) + "...");
+
+    try {
+        await currentCallRef.remove();
+        await currentCallRef.update({
+            callerId: user.uid,
+            receiverId: currentPeerId,
+            mode: currentCallMode,
+            status: "starting",
+            startedAt: Date.now()
+        });
+
+        await startLocalMedia(currentCallMode);
+        createCallPeer(currentCallId, currentPeerId);
+
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+
+        await currentCallRef.update({
+            callerId: user.uid,
+            receiverId: currentPeerId,
+            mode: currentCallMode,
+            status: "ringing",
+            startedAt: Date.now(),
+            offer: {
+                type: offer.type,
+                sdp: offer.sdp
+            }
+        });
+
+        watchCurrentCall(currentCallId);
+    } catch(error){
+        console.error("Error starting call:", error);
+        alert("Could not start call: " + error.message);
+        if(currentCallRef){
+            currentCallRef.update({ status: "ended", endedAt: Date.now() });
+        }
+        resetCallState();
+    }
 };
+
+window.answerCall = async function(){
+    const user = auth.currentUser;
+    const call = incomingCallData;
+
+    if(!user || !call || !currentCallId || !currentCallRef) return;
+
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+        alert("Calling needs camera/microphone support in this browser.");
+        return;
+    }
+
+    showAnswerButton(false);
+    setCallStatus("Connecting...");
+
+    try {
+        await startLocalMedia(call.mode || "video");
+        createCallPeer(currentCallId, call.callerId);
+
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(call.offer));
+        flushPendingIceCandidates();
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+
+        await currentCallRef.update({
+            status: "active",
+            answeredAt: Date.now(),
+            answer: {
+                type: answer.type,
+                sdp: answer.sdp
+            }
+        });
+
+        watchCurrentCall(currentCallId);
+        setCallStatus("Connected");
+    } catch(error){
+        console.error("Error answering call:", error);
+        alert("Could not answer call: " + error.message);
+        await currentCallRef.update({ status: "ended", endedAt: Date.now() });
+        resetCallState();
+    }
+};
+
+window.endCall = function(){
+    if(currentCallRef){
+        currentCallRef.update({
+            status: "ended",
+            endedAt: Date.now()
+        }).finally(resetCallState);
+        return;
+    }
+
+    resetCallState();
+};
+
+function handleIncomingCallSnapshot(snapshot){
+        const call = snapshot.val();
+        if(!call || call.status !== "ringing" || currentCallId) return;
+
+        currentCallId = snapshot.key;
+        currentCallRef = snapshot.ref;
+        incomingCallData = call;
+        currentCallMode = call.mode || "video";
+
+        showCallPanel(true);
+        showAnswerButton(true);
+        setCallStatus("Incoming " + currentCallMode + " call from " + getCallLabel(call.callerId));
+}
+
+function listenForIncomingCalls(user){
+    db.ref("calls").orderByChild("receiverId").equalTo(user.uid).on("child_added", (snapshot)=>{
+        handleIncomingCallSnapshot(snapshot);
+    });
+
+    db.ref("calls").orderByChild("receiverId").equalTo(user.uid).on("child_changed", (snapshot)=>{
+        const call = snapshot.val();
+
+        handleIncomingCallSnapshot(snapshot);
+
+        if(snapshot.key === currentCallId && (!call || call.status === "ended" || call.status === "declined")){
+            resetCallState();
+        }
+    });
+}
 
 window.logout = async function(){
     const user = firebase.auth().currentUser;

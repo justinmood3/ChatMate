@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="image" href="mate.png">
     <title>ChatMate</title>
+    <link rel="icon" type="image/png" href="mate.png">
+    <link rel="apple-touch-icon" href="mate.png">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -13,7 +14,7 @@
 
     <aside id="sidebar">
         <div class="sidebar-brand">
-            <div class="brand-mark">CM</div>
+            <div class="brand-mark"><img src="mate.png" alt="ChatMate icon"></div>
             <div>
                 <strong>ChatMate</strong>
                 <span>Messages</span>
@@ -43,10 +44,25 @@
             <strong id="activeChatName">Choose someone to chat</strong>
             <span id="activeChatStatus">Select a user from the people list.</span>
         </div>
+        <div class="call-actions">
+            <button type="button" onclick="startCall('audio')" title="Start audio call">Audio</button>
+            <button type="button" onclick="startCall('video')" title="Start video call">Video</button>
+        </div>
     </div>
 
-    <video id="localVideo" autoplay playsinline></video>
-    <video id="remoteVideo" autoplay playsinline></video>
+    <section id="callPanel" class="call-panel" hidden>
+        <div class="call-topbar">
+            <span id="callStatus">Calling...</span>
+            <div class="call-controls">
+                <button type="button" id="answerCallBtn" onclick="answerCall()" hidden>Answer</button>
+                <button type="button" class="danger-btn" onclick="endCall()">End</button>
+            </div>
+        </div>
+        <div class="call-videos">
+            <video id="remoteVideo" autoplay playsinline></video>
+            <video id="localVideo" autoplay playsinline muted></video>
+        </div>
+    </section>
 
     <div id="chat-box" aria-live="polite"></div>
     <div id="typingIndicator"></div>

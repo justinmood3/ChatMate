@@ -140,11 +140,19 @@ input::placeholder{
     display:grid;
     place-items:center;
     border-radius:8px;
-    background:linear-gradient(145deg, #0b6b5f, #246bfe);
+    overflow:hidden;
+    background:#071b32;
     color:#fff;
     font-size:16px;
     font-weight:900;
     box-shadow:0 12px 24px rgba(7, 74, 67, 0.22);
+}
+
+.brand-mark img{
+    width:100%;
+    height:100%;
+    display:block;
+    object-fit:cover;
 }
 
 .login-box{
@@ -427,9 +435,17 @@ input::placeholder{
     backdrop-filter:blur(14px);
 }
 
+.chat-header > div:first-of-type{
+    min-width:0;
+    flex:1;
+}
+
 .chat-header strong{
     display:block;
     font-size:17px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
 }
 
 .chat-header span{
@@ -437,6 +453,95 @@ input::placeholder{
     margin-top:4px;
     color:var(--muted);
     font-size:13px;
+}
+
+.call-actions{
+    display:flex;
+    gap:8px;
+    margin-left:auto;
+}
+
+.call-actions button{
+    min-height:38px;
+    padding:8px 12px;
+    background:#173b36;
+    font-size:13px;
+}
+
+.call-panel{
+    margin:14px min(5vw, 54px) 0;
+    overflow:hidden;
+    border:1px solid var(--line);
+    border-radius:8px;
+    background:#101817;
+    box-shadow:0 18px 40px rgba(20, 33, 31, 0.16);
+}
+
+.call-panel[hidden]{
+    display:none;
+}
+
+.call-topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    padding:10px 12px;
+    color:#fff;
+    background:#173b36;
+}
+
+#callStatus{
+    overflow:hidden;
+    color:#d8ebe7;
+    font-size:14px;
+    font-weight:800;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+}
+
+.call-controls{
+    display:flex;
+    gap:8px;
+}
+
+.call-controls button{
+    min-height:34px;
+    padding:7px 11px;
+    font-size:13px;
+}
+
+.danger-btn{
+    background:var(--danger);
+}
+
+.danger-btn:hover{
+    background:#8f1d15;
+}
+
+.call-videos{
+    position:relative;
+    min-height:260px;
+    background:#0b1110;
+}
+
+.call-videos video{
+    display:block;
+    width:100%;
+    height:360px;
+    object-fit:cover;
+    background:#0b1110;
+}
+
+#localVideo{
+    position:absolute;
+    right:12px;
+    bottom:12px;
+    width:168px;
+    height:112px;
+    border:2px solid rgba(255, 255, 255, 0.78);
+    border-radius:8px;
+    box-shadow:0 14px 30px rgba(0, 0, 0, 0.28);
 }
 
 #chat-box{
@@ -622,7 +727,7 @@ input::placeholder{
 }
 
 video{
-    display:none;
+    display:block;
 }
 
 @media(max-width:860px){
@@ -700,6 +805,32 @@ video{
     .chat-header{
         min-height:68px;
         padding:12px 14px;
+        flex-wrap:wrap;
+    }
+
+    .call-actions{
+        width:100%;
+    }
+
+    .call-actions button{
+        flex:1;
+    }
+
+    .call-panel{
+        margin:10px;
+    }
+
+    .call-videos{
+        min-height:210px;
+    }
+
+    .call-videos video{
+        height:250px;
+    }
+
+    #localVideo{
+        width:112px;
+        height:82px;
     }
 
     #chat-box{
