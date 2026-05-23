@@ -10,100 +10,87 @@
 </head>
 <body>
 
-<div class="app-shell">
+    <button id="logoutBtn" onclick="logout()">Logout</button>
+
     <aside id="sidebar">
-        <div class="sidebar-top">
-            <div class="brand-panel">
-                <div class="brand-mark"><img src="mate.png" alt="ChatMate icon"></div>
-                <div>
-                    <strong>ChatMate</strong>
-                    <span>Connect with friends instantly</span>
-                </div>
+        <div class="sidebar-brand">
+            <div class="brand-mark"><img src="mate.png" alt="ChatMate icon"></div>
+            <div>
+                <strong>ChatMate</strong>
+                <span>Messages</span>
             </div>
-            <button id="logoutBtn" class="logout-btn" onclick="logout()">Logout</button>
         </div>
 
         <section class="profile-panel">
-            <div class="profile-heading">
-                <div>
-                    <strong>My profile</strong>
-                    <span>Update your name, status and photo.</span>
-                </div>
-            </div>
             <label class="profile-photo-control" for="profilePhoto">
                 <img id="profilePreview" class="avatar large" src="" alt="Profile photo">
                 <span>Change photo</span>
             </label>
             <input type="text" id="profileName" placeholder="Your name">
-            <input type="text" id="profileStatus" placeholder="Set a status">
+            <input type="text" id="profileStatus" placeholder="Status">
             <input type="file" id="profilePhoto" accept="image/*">
             <div id="profileUploadStatus" class="profile-upload-status"></div>
             <button onclick="saveProfile()">Save profile</button>
         </section>
 
         <div class="sidebar-search">
-            <input type="search" id="contactSearch" placeholder="Search chats or contacts">
+            <input type="search" id="userSearch" placeholder="Search chats..." oninput="filterUsers()">
         </div>
 
-        <h3>Chats</h3>
-        <div id="user-list" class="contact-list"></div>
+        <h3>People</h3>
+        <div id="user-list"></div>
 
-        <h3>Recent calls</h3>
-        <div id="call-list" class="call-list"></div>
+        <h3>Calls</h3>
+        <div id="call-list" class="calls"></div>
     </aside>
 
-    <main class="chat-container">
-        <div class="chat-header">
-            <div class="chat-person">
-                <img id="activeChatPhoto" class="avatar" src="" alt="">
-                <div class="chat-person-info">
-                    <strong id="activeChatName">Choose someone to chat</strong>
-                    <span id="activeChatStatus">Select a user from the people list.</span>
-                </div>
-            </div>
-            <div class="call-actions">
-                <button type="button" onclick="startCall('audio')" title="Start audio call">Audio</button>
-                <button type="button" onclick="startCall('video')" title="Start video call">Video</button>
+<div class="chat-container">
+    <div class="chat-header">
+        <img id="activeChatPhoto" class="avatar" src="" alt="">
+        <div>
+            <strong id="activeChatName">Choose someone to chat</strong>
+            <span id="activeChatStatus">Select a user from the people list.</span>
+        </div>
+        <div class="call-actions">
+            <button type="button" onclick="startCall('audio')" title="Start audio call">Audio</button>
+            <button type="button" onclick="startCall('video')" title="Start video call">Video</button>
+        </div>
+    </div>
+
+    <section id="callPanel" class="call-panel" hidden>
+        <div class="call-topbar">
+            <span id="callStatus">Calling...</span>
+            <div class="call-controls">
+                <button type="button" id="answerCallBtn" onclick="answerCall()" hidden>Answer</button>
+                <button type="button" id="endCallBtn" class="danger-btn" onclick="endCall()">End</button>
             </div>
         </div>
-
-        <section id="callPanel" class="call-panel" hidden>
-            <div class="call-topbar">
-                <span id="callStatus">Calling...</span>
-                <div class="call-controls">
-                    <button type="button" id="answerCallBtn" onclick="answerCall()" hidden>Answer</button>
-                    <button type="button" id="endCallBtn" class="danger-btn" onclick="endCall()">End</button>
-                </div>
-            </div>
-            <div class="call-videos">
-                <video id="remoteVideo" autoplay playsinline></video>
-                <video id="localVideo" autoplay playsinline muted></video>
-            </div>
-        </section>
-
-        <div class="chat-body">
-            <div id="chat-box" aria-live="polite"></div>
-            <div id="typingIndicator" class="typing-indicator"></div>
+        <div class="call-videos">
+            <video id="remoteVideo" autoplay playsinline></video>
+            <video id="localVideo" autoplay playsinline muted></video>
         </div>
+    </section>
 
-        <div class="input-area">
-            <button id="mediaBtn" class="media-btn" onclick="toggleMediaPicker()">+</button>
-            <input type="text" id="message" placeholder="Type a message" oninput="typing()" onkeydown="handleMessageKey(event)">
-            <button class="send-btn" onclick="sendMessage()">Send</button>
-            <input type="file" id="mediaFile" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.xlsx" style="display:none;">
-            <button onclick="sendMediaFromButton()" id="sendMediaBtn" style="display:none;">Send Media</button>
-        </div>
+    <div id="chat-box" aria-live="polite"></div>
+    <div id="typingIndicator"></div>
 
-        <div id="mediaPicker" class="media-picker" hidden>
-            <div class="media-options">
-                <button onclick="pickMediaType('image')">Photo</button>
-                <button onclick="pickMediaType('video')">Video</button>
-                <button onclick="pickMediaType('audio')">Voice</button>
-                <button onclick="pickMediaType('document')">Document</button>
-                <button onclick="closePicker()">Close</button>
-            </div>
+    <div class="input-area">
+        <button id="mediaBtn" class="media-btn" onclick="toggleMediaPicker()">+</button>
+        <input type="text" id="message" placeholder="Type message" oninput="typing()" onkeydown="handleMessageKey(event)">
+        <button class="send-btn" onclick="sendMessage()">Send</button>
+        <input type="file" id="mediaFile" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.xlsx" style="display:none;"><button onclick="sendMediaFromButton()" id="sendMediaBtn" style="display:none;">Send Media</button>
+    </div>
+
+    <div id="mediaPicker" class="media-picker" hidden>
+        <div class="media-options">
+            <button onclick="pickMediaType('image')">Photo</button>
+            <button onclick="pickMediaType('video')">Video</button>
+            <button onclick="pickMediaType('audio')">Voice</button>
+            <button onclick="pickMediaType('document')">Document</button>
+            <button onclick="closePicker()">Close</button>
         </div>
-    </main>
+    </div>
+
 </div>
 
 <!-- Firebase -->

@@ -4,7 +4,6 @@ let currentMessagesRef = null;
 let currentTypingRef = null;
 let usersCache = {};
 let currentMediaType = null;
-let userSearchQuery = "";
 const maxProfilePhotoSize = 5 * 1024 * 1024;
 
 // Initialize media file input listener
@@ -23,14 +22,6 @@ window.addEventListener("load", function(){
     if(profilePhotoInput){
         profilePhotoInput.addEventListener("change", function(){
             previewSelectedProfilePhoto(this.files[0]);
-        });
-    }
-
-    const contactSearch = document.getElementById("contactSearch");
-    if(contactSearch){
-        contactSearch.addEventListener("input", function(event){
-            userSearchQuery = event.target.value.trim().toLowerCase();
-            renderUsers();
         });
     }
 });
@@ -215,10 +206,9 @@ function renderMessage(snapshot){
     message.className = isMine ? "message mine" : "message theirs";
     message.dataset.id = snapshot.key;
 
-    const timeText = data.time ? new Date(data.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
     const meta = document.createElement("div");
     meta.className = "message-meta";
-    meta.innerHTML = `<strong>${sender}</strong>` + (timeText ? `<span class="message-time">${escapeHtml(timeText)}</span>` : "");
+    meta.innerHTML = `<strong>${sender}</strong>`;
     message.appendChild(meta);
 
     if(data.image){
@@ -308,6 +298,14 @@ function openChat(userId){
     listenToChat(getChatId(user.uid, userId), userId);
 }
 
+function filterUsers(){
+    const search = document.getElementById("userSearch").value.toLowerCase();
+    document.querySelectorAll("#user-list .user").forEach((row)=>{
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(search) ? "" : "none";
+    });
+}
+
 function renderUsers(){
     const user = auth.currentUser;
     userList.innerHTML = "";
@@ -316,9 +314,6 @@ function renderUsers(){
         if(user && uid === user.uid) return;
 
         const profile = usersCache[uid];
-        const labelText = (profile.username || profile.displayName || profile.email || profile.status || "").toLowerCase();
-        if(userSearchQuery && !labelText.includes(userSearchQuery)) return;
-
         const row = document.createElement("button");
         row.className = uid === currentPeerId ? "user active" : "user";
         row.type = "button";
