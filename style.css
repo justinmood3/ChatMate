@@ -412,6 +412,76 @@ input::placeholder{
     font-size:14px;
 }
 
+.call-row{
+    width:100%;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    min-height:58px;
+    padding:9px 10px;
+    margin-bottom:7px;
+    border:1px solid transparent;
+    border-radius:8px;
+    background:transparent;
+    color:var(--ink);
+    text-align:left;
+    font-weight:600;
+    box-shadow:none;
+}
+
+.call-row:hover{
+    background:var(--panel-soft);
+    border-color:var(--line);
+    box-shadow:none;
+    transform:none;
+}
+
+.call-row.missed{
+    background:#fff4f2;
+    border-color:#ffd7d2;
+}
+
+.call-row span:last-child{
+    min-width:0;
+}
+
+.call-row strong,
+.call-row small{
+    display:block;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+}
+
+.call-row small{
+    margin-top:4px;
+    color:var(--muted);
+    font-size:12px;
+    font-weight:500;
+}
+
+.call-row.missed small{
+    color:#9f2a20;
+}
+
+.call-icon{
+    width:34px;
+    height:34px;
+    flex:0 0 auto;
+    display:grid;
+    place-items:center;
+    border-radius:8px;
+    background:#eef5f3;
+    color:var(--brand);
+    font-size:11px;
+    font-weight:900;
+}
+
+.call-row.missed .call-icon{
+    background:#ffe4e0;
+    color:var(--danger);
+}
+
 .chat-container{
     position:relative;
     flex:1;

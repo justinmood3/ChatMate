@@ -4,6 +4,7 @@ let currentMessagesRef = null;
 let currentTypingRef = null;
 let usersCache = {};
 let currentMediaType = null;
+let userSearchQuery = "";
 const maxProfilePhotoSize = 5 * 1024 * 1024;
 
 // Initialize media file input listener
@@ -22,6 +23,14 @@ window.addEventListener("load", function(){
     if(profilePhotoInput){
         profilePhotoInput.addEventListener("change", function(){
             previewSelectedProfilePhoto(this.files[0]);
+        });
+    }
+
+    const contactSearch = document.getElementById("contactSearch");
+    if(contactSearch){
+        contactSearch.addEventListener("input", function(event){
+            userSearchQuery = event.target.value.trim().toLowerCase();
+            renderUsers();
         });
     }
 });
@@ -103,6 +112,7 @@ function uploadMediaMessage(file, mediaType){
 
 const chatBox = document.getElementById("chat-box");
 const userList = document.getElementById("user-list");
+const callList = document.getElementById("call-list");
 const auth = firebase.auth();
 const storage = firebase.storage();
 
@@ -205,9 +215,10 @@ function renderMessage(snapshot){
     message.className = isMine ? "message mine" : "message theirs";
     message.dataset.id = snapshot.key;
 
+    const timeText = data.time ? new Date(data.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
     const meta = document.createElement("div");
     meta.className = "message-meta";
-    meta.innerHTML = `<strong>${sender}</strong>`;
+    meta.innerHTML = `<strong>${sender}</strong>` + (timeText ? `<span class="message-time">${escapeHtml(timeText)}</span>` : "");
     message.appendChild(meta);
 
     if(data.image){
@@ -305,6 +316,9 @@ function renderUsers(){
         if(user && uid === user.uid) return;
 
         const profile = usersCache[uid];
+        const labelText = (profile.username || profile.displayName || profile.email || profile.status || "").toLowerCase();
+        if(userSearchQuery && !labelText.includes(userSearchQuery)) return;
+
         const row = document.createElement("button");
         row.className = uid === currentPeerId ? "user active" : "user";
         row.type = "button";
@@ -327,6 +341,8 @@ function renderUsers(){
         empty.textContent = "No other users yet.";
         userList.appendChild(empty);
     }
+
+    renderCallHistory(lastRenderedCallHistory);
 }
 
 function loadMyProfile(user){
@@ -359,6 +375,7 @@ auth.onAuthStateChanged((user)=>{
     });
 
     loadMyProfile(user);
+    listenToCallHistory(user);
     listenForIncomingCalls(user);
 });
 
@@ -553,6 +570,12 @@ let peerCandidateRef = null;
 let callValueRef = null;
 let callCandidatesRef = null;
 let pendingIceCandidates = [];
+let callHistoryRef = null;
+let missedCallTimer = null;
+let lastRenderedCallHistory = [];
+
+const CALL_RING_TIMEOUT_MS = 45000;
+const terminalCallStatuses = ["ended", "declined", "missed", "cancelled", "failed"];
 
 const servers = {
     iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
@@ -571,6 +594,11 @@ function showCallPanel(show){
 function showAnswerButton(show){
     const button = document.getElementById("answerCallBtn");
     if(button) button.hidden = !show;
+}
+
+function setEndCallLabel(label){
+    const button = document.getElementById("endCallBtn");
+    if(button) button.textContent = label || "End";
 }
 
 function getCallLabel(userId){
@@ -607,8 +635,16 @@ function detachCallListeners(){
     peerCandidateRef = null;
 }
 
+function clearMissedCallTimer(){
+    if(missedCallTimer){
+        clearTimeout(missedCallTimer);
+        missedCallTimer = null;
+    }
+}
+
 function resetCallState(){
     detachCallListeners();
+    clearMissedCallTimer();
 
     if(peerConnection){
         peerConnection.onicecandidate = null;
@@ -620,12 +656,157 @@ function resetCallState(){
     stopLocalStream();
     clearCallMedia();
     showAnswerButton(false);
+    setEndCallLabel("End");
     showCallPanel(false);
     setCallStatus("");
     currentCallId = null;
     currentCallRef = null;
     incomingCallData = null;
     pendingIceCandidates = [];
+}
+
+function isTerminalCallStatus(status){
+    return terminalCallStatuses.indexOf(status) !== -1;
+}
+
+function getCallPeerId(call, userId){
+    if(!call || !userId) return "";
+    return call.callerId === userId ? call.receiverId : call.callerId;
+}
+
+function getCallStatusLabel(call){
+    if(!call) return "Call";
+
+    if(call.status === "missed") return "Missed call";
+    if(call.status === "declined") return "Declined call";
+    if(call.status === "cancelled") return "Cancelled call";
+    if(call.status === "failed") return "Failed call";
+    if(call.mode === "audio") return "Audio call";
+    return "Video call";
+}
+
+function formatCallTime(value){
+    if(!value) return "";
+
+    const date = new Date(value);
+    const today = new Date();
+    const isToday = date.toDateString() === today.toDateString();
+
+    return date.toLocaleString([], {
+        month: isToday ? undefined : "short",
+        day: isToday ? undefined : "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+    });
+}
+
+function renderCallHistory(calls){
+    if(!callList) return;
+
+    const user = auth.currentUser;
+    callList.innerHTML = "";
+
+    if(!calls || !calls.length){
+        const empty = document.createElement("p");
+        empty.className = "empty-state";
+        empty.textContent = "No calls yet.";
+        callList.appendChild(empty);
+        return;
+    }
+
+    calls.forEach((call)=>{
+        const peerId = call.peerId || getCallPeerId(call, user && user.uid);
+        const row = document.createElement("button");
+        row.type = "button";
+        row.className = "call-row" + (call.status === "missed" ? " missed" : "");
+        row.onclick = () => {
+            if(peerId){
+                openChat(peerId);
+            }
+        };
+
+        const direction = call.direction === "outgoing" ? "Outgoing" : "Incoming";
+        const mode = call.mode === "audio" ? "Audio" : "Video";
+
+        row.innerHTML = `
+            <span class="call-icon">${call.direction === "outgoing" ? "Out" : "In"}</span>
+            <span>
+                <strong>${escapeHtml(getCallLabel(peerId))}</strong>
+                <small>${escapeHtml(getCallStatusLabel(call))} - ${direction} ${mode} - ${escapeHtml(formatCallTime(call.time || call.startedAt))}</small>
+            </span>
+        `;
+
+        callList.appendChild(row);
+    });
+}
+
+function listenToCallHistory(user){
+    if(callHistoryRef){
+        callHistoryRef.off();
+    }
+
+    callHistoryRef = db.ref("callHistory/" + user.uid);
+    callHistoryRef.orderByChild("time").limitToLast(30).on("value", (snapshot)=>{
+        const calls = [];
+        snapshot.forEach((child)=>{
+            calls.push(Object.assign({ callId: child.key }, child.val()));
+        });
+
+        lastRenderedCallHistory = calls.reverse();
+        renderCallHistory(lastRenderedCallHistory);
+    });
+}
+
+function saveCallHistory(callId, call){
+    if(!call || !call.callerId || !call.receiverId || !isTerminalCallStatus(call.status)){
+        return Promise.resolve();
+    }
+
+    const endedAt = call.endedAt || Date.now();
+    const callerPeer = call.receiverId;
+    const receiverPeer = call.callerId;
+    const base = {
+        callId: callId,
+        callerId: call.callerId,
+        receiverId: call.receiverId,
+        mode: call.mode || "video",
+        status: call.status,
+        startedAt: call.startedAt || endedAt,
+        answeredAt: call.answeredAt || null,
+        endedAt: endedAt,
+        time: endedAt
+    };
+    const updates = {};
+
+    updates["callHistory/" + call.callerId + "/" + callId] = Object.assign({}, base, {
+        direction: "outgoing",
+        peerId: callerPeer
+    });
+    updates["callHistory/" + call.receiverId + "/" + callId] = Object.assign({}, base, {
+        direction: "incoming",
+        peerId: receiverPeer
+    });
+
+    return db.ref().update(updates);
+}
+
+function startMissedCallTimer(callId, callRef){
+    clearMissedCallTimer();
+
+    missedCallTimer = setTimeout(()=>{
+        callRef.once("value").then((snapshot)=>{
+            const call = snapshot.val();
+            if(call && call.status === "ringing"){
+                return callRef.update({
+                    status: "missed",
+                    missedBy: call.receiverId,
+                    endedAt: Date.now()
+                });
+            }
+        }).catch((error)=>{
+            console.error("Error marking missed call:", error);
+        });
+    }, CALL_RING_TIMEOUT_MS);
 }
 
 async function startLocalMedia(mode){
@@ -702,7 +883,10 @@ function watchCurrentCall(callId){
             return;
         }
 
-        if(call.status === "ended" || call.status === "declined"){
+        if(isTerminalCallStatus(call.status)){
+            saveCallHistory(callId, call).catch((error)=>{
+                console.error("Error saving call history:", error);
+            });
             resetCallState();
             return;
         }
@@ -711,6 +895,7 @@ function watchCurrentCall(callId){
             try {
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(call.answer));
                 flushPendingIceCandidates();
+                clearMissedCallTimer();
                 setCallStatus("Connected");
             } catch(error){
                 console.error("Error setting remote answer:", error);
@@ -735,18 +920,19 @@ window.startCall = async function(mode){
     resetCallState();
 
     currentCallMode = mode === "audio" ? "audio" : "video";
-    currentCallId = getChatId(user.uid, currentPeerId);
-    currentCallRef = db.ref("calls/" + currentCallId);
+    currentCallRef = db.ref("calls").push();
+    currentCallId = currentCallRef.key;
 
     showCallPanel(true);
     showAnswerButton(false);
+    setEndCallLabel("End");
     setCallStatus("Calling " + getCallLabel(currentPeerId) + "...");
 
     try {
-        await currentCallRef.remove();
         await currentCallRef.update({
             callerId: user.uid,
             receiverId: currentPeerId,
+            chatId: getChatId(user.uid, currentPeerId),
             mode: currentCallMode,
             status: "starting",
             startedAt: Date.now()
@@ -761,6 +947,7 @@ window.startCall = async function(mode){
         await currentCallRef.update({
             callerId: user.uid,
             receiverId: currentPeerId,
+            chatId: getChatId(user.uid, currentPeerId),
             mode: currentCallMode,
             status: "ringing",
             startedAt: Date.now(),
@@ -770,12 +957,13 @@ window.startCall = async function(mode){
             }
         });
 
+        startMissedCallTimer(currentCallId, currentCallRef);
         watchCurrentCall(currentCallId);
     } catch(error){
         console.error("Error starting call:", error);
         alert("Could not start call: " + error.message);
         if(currentCallRef){
-            currentCallRef.update({ status: "ended", endedAt: Date.now() });
+            currentCallRef.update({ status: "failed", endedAt: Date.now() });
         }
         resetCallState();
     }
@@ -793,6 +981,7 @@ window.answerCall = async function(){
     }
 
     showAnswerButton(false);
+    setEndCallLabel("End");
     setCallStatus("Connecting...");
 
     try {
@@ -814,19 +1003,30 @@ window.answerCall = async function(){
         });
 
         watchCurrentCall(currentCallId);
+        clearMissedCallTimer();
         setCallStatus("Connected");
     } catch(error){
         console.error("Error answering call:", error);
         alert("Could not answer call: " + error.message);
-        await currentCallRef.update({ status: "ended", endedAt: Date.now() });
+        await currentCallRef.update({ status: "failed", endedAt: Date.now() });
         resetCallState();
     }
 };
 
-window.endCall = function(){
+window.endCall = async function(){
     if(currentCallRef){
+        const user = auth.currentUser;
+        const snapshot = await currentCallRef.once("value");
+        const call = snapshot.val() || {};
+        let status = "ended";
+
+        if(call.status === "ringing"){
+            status = user && call.receiverId === user.uid ? "declined" : "cancelled";
+        }
+
         currentCallRef.update({
-            status: "ended",
+            status: status,
+            endedBy: user ? user.uid : null,
             endedAt: Date.now()
         }).finally(resetCallState);
         return;
@@ -839,6 +1039,15 @@ function handleIncomingCallSnapshot(snapshot){
         const call = snapshot.val();
         if(!call || call.status !== "ringing" || currentCallId) return;
 
+        if(call.startedAt && Date.now() - call.startedAt > CALL_RING_TIMEOUT_MS){
+            snapshot.ref.update({
+                status: "missed",
+                missedBy: call.receiverId,
+                endedAt: Date.now()
+            });
+            return;
+        }
+
         currentCallId = snapshot.key;
         currentCallRef = snapshot.ref;
         incomingCallData = call;
@@ -846,7 +1055,9 @@ function handleIncomingCallSnapshot(snapshot){
 
         showCallPanel(true);
         showAnswerButton(true);
+        setEndCallLabel("Decline");
         setCallStatus("Incoming " + currentCallMode + " call from " + getCallLabel(call.callerId));
+        startMissedCallTimer(currentCallId, currentCallRef);
 }
 
 function listenForIncomingCalls(user){
@@ -859,7 +1070,10 @@ function listenForIncomingCalls(user){
 
         handleIncomingCallSnapshot(snapshot);
 
-        if(snapshot.key === currentCallId && (!call || call.status === "ended" || call.status === "declined")){
+        if(snapshot.key === currentCallId && call && isTerminalCallStatus(call.status)){
+            saveCallHistory(snapshot.key, call).catch((error)=>{
+                console.error("Error saving call history:", error);
+            });
             resetCallState();
         }
     });
