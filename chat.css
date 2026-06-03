@@ -1,0 +1,634 @@
+/* =========================
+   PREMIUM PEOPLE SIDEBAR
+========================= */
+
+#sidebar{
+    width:320px;
+    background:#ffffff;
+    border-right:1px solid #e8edf5;
+    padding:22px 18px;
+    overflow-y:auto;
+}
+
+/* heading */
+#sidebar h3{
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:#94a3b8;
+    margin-bottom:16px;
+    padding-left:8px;
+}
+
+/* list */
+#user-list{
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+}
+
+/* user card */
+.user{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    width:100%;
+    padding:14px;
+    border:none;
+    border-radius:20px;
+    background:#ffffff;
+    cursor:pointer;
+    transition:
+        transform .2s ease,
+        box-shadow .25s ease,
+        background .25s ease;
+    box-shadow:
+        0 2px 6px rgba(15,23,42,.04);
+}
+
+/* hover */
+.user:hover{
+    background:#f8fbff;
+    transform:translateY(-2px);
+    box-shadow:
+        0 12px 28px rgba(37,99,235,.12);
+}
+
+/* selected */
+.user.active{
+    background:linear-gradient(
+        135deg,
+        #2563eb,
+        #3b82f6
+    );
+    box-shadow:
+        0 14px 30px rgba(37,99,235,.28);
+}
+
+/* avatar */
+.user .avatar{
+    width:56px;
+    height:56px;
+    border-radius:50%;
+    object-fit:cover;
+    flex-shrink:0;
+    border:2px solid #eef2ff;
+}
+
+/* text container */
+.user span{
+    display:flex;
+    flex-direction:column;
+    flex:1;
+    min-width:0;
+}
+
+/* name */
+.user strong{
+    font-size:15px;
+    font-weight:700;
+    color:#0f172a;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+}
+
+/* status */
+.user small{
+    margin-top:4px;
+    font-size:13px;
+    color:#64748b;
+}
+
+/* selected text */
+.user.active strong,
+.user.active small{
+    color:white;
+}
+
+/* online dot */
+.user small::before{
+    content:"";
+    width:8px;
+    height:8px;
+    border-radius:50%;
+    display:inline-block;
+    margin-right:8px;
+    background:#22c55e;
+    vertical-align:middle;
+}
+
+/* offline dot */
+.user.offline small::before{
+    background:#cbd5e1;
+}
+
+/* smooth scroll */
+#sidebar::-webkit-scrollbar{
+    width:6px;
+}
+
+#sidebar::-webkit-scrollbar-thumb{
+    background:#dbe3ef;
+    border-radius:20px;
+}
+/* =========================
+   GLOBAL
+========================= */
+
+*{
+    box-sizing:border-box;
+    margin:0;
+    padding:0;
+    font-family:Inter, Arial, sans-serif;
+}
+
+body{
+    background:#f5f7fb;
+}
+
+/* =========================
+   SIDEBAR
+========================= */
+
+#sidebar{
+    width:340px;
+    min-height:100vh;
+    background:#ffffff;
+    border-right:1px solid #e7edf5;
+    padding:24px 18px;
+    display:flex;
+    flex-direction:column;
+    gap:22px;
+}
+
+/* =========================
+   BRAND
+========================= */
+
+.sidebar-brand{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    padding-bottom:18px;
+    border-bottom:1px solid #eef2f7;
+}
+
+.brand-mark{
+    width:54px;
+    height:54px;
+    border-radius:18px;
+    background:linear-gradient(
+        135deg,
+        #2563eb,
+        #3b82f6
+    );
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    box-shadow:
+        0 8px 24px rgba(37,99,235,.25);
+}
+
+.brand-mark img{
+    width:30px;
+    height:30px;
+    object-fit:contain;
+}
+
+.sidebar-brand strong{
+    display:block;
+    font-size:18px;
+    font-weight:700;
+    color:#0f172a;
+}
+
+.sidebar-brand span{
+    font-size:13px;
+    color:#64748b;
+}
+
+/* =========================
+   PROFILE PANEL
+========================= */
+
+.profile-panel{
+    background:#ffffff;
+    border-radius:22px;
+    padding:20px;
+    box-shadow:
+        0 6px 20px rgba(15,23,42,.05);
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+}
+
+/* photo */
+
+.profile-photo-control{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:10px;
+    cursor:pointer;
+}
+
+.avatar.large{
+    width:90px;
+    height:90px;
+    border-radius:50%;
+    object-fit:cover;
+    border:3px solid #dbeafe;
+    background:#f8fafc;
+}
+
+.profile-photo-control span{
+    font-size:13px;
+    color:#2563eb;
+    font-weight:600;
+}
+
+/* inputs */
+
+.profile-panel input[type="text"]{
+    width:100%;
+    padding:13px 16px;
+    border:none;
+    border-radius:14px;
+    background:#f8fafc;
+    font-size:14px;
+    outline:none;
+    transition:.2s ease;
+}
+
+.profile-panel input[type="text"]:focus{
+    background:#ffffff;
+    box-shadow:
+        0 0 0 2px #bfdbfe;
+}
+
+/* file hidden */
+
+#profilePhoto{
+    display:none;
+}
+
+/* upload status */
+
+.profile-upload-status{
+    text-align:center;
+    font-size:13px;
+    color:#64748b;
+    min-height:18px;
+}
+
+/* save button */
+
+.profile-panel button{
+    border:none;
+    border-radius:14px;
+    padding:14px;
+    font-size:15px;
+    font-weight:700;
+    color:white;
+    background:linear-gradient(
+        135deg,
+        #2563eb,
+        #3b82f6
+    );
+    cursor:pointer;
+    transition:.25s ease;
+    box-shadow:
+        0 8px 18px rgba(37,99,235,.22);
+}
+
+.profile-panel button:hover{
+    transform:translateY(-2px);
+}
+
+/* =========================
+   SEARCH
+========================= */
+
+.sidebar-search{
+    position:relative;
+}
+
+.sidebar-search input{
+    width:100%;
+    padding:14px 18px;
+    border:none;
+    border-radius:16px;
+    background:#f8fafc;
+    font-size:14px;
+    outline:none;
+    transition:.2s ease;
+}
+
+.sidebar-search input:focus{
+    background:#ffffff;
+    box-shadow:
+        0 0 0 2px #bfdbfe;
+}
+
+/* =========================
+   LOGOUT
+========================= */
+
+#logoutBtn{
+    position:fixed;
+    top:18px;
+    right:18px;
+    border:none;
+    border-radius:14px;
+    padding:12px 20px;
+    background:#ef4444;
+    color:white;
+    font-weight:700;
+    cursor:pointer;
+    box-shadow:
+        0 8px 20px rgba(239,68,68,.2);
+}
+
+#logoutBtn:hover{
+    transform:translateY(-2px);
+}
+/* GENERAL RESET */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+}
+
+body {
+    background: #f0f2f5;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* CHAT CONTAINER */
+.chat-container {
+    width: 100%;
+    max-width: 420px;
+    height: 90vh;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+}
+
+/* HEADER */
+.chat-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: #0084ff;
+    color: white;
+}
+
+.chat-header .avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-right: 10px;
+}
+
+.chat-header div {
+    flex: 1;
+    margin-left: 10px;
+}
+
+.chat-header strong {
+    display: block;
+    font-size: 15px;
+}
+
+.chat-header span {
+    font-size: 12px;
+    opacity: 0.85;
+}
+
+/* CALL BUTTONS */
+.call-actions button {
+    background: rgba(255,255,255,0.2);
+    border: none;
+    color: white;
+    padding: 6px 10px;
+    border-radius: 8px;
+    margin-left: 5px;
+    cursor: pointer;
+}
+
+/* CALL PANEL */
+.call-panel {
+    background: #000;
+    color: white;
+    padding: 10px;
+}
+
+.call-videos {
+    display: flex;
+    gap: 5px;
+    margin-top: 10px;
+}
+
+.call-videos video {
+    width: 50%;
+    border-radius: 10px;
+    background: black;
+}
+
+/* CHAT BOX */
+#chat-box {
+    flex: 1;
+    padding: 10px;
+    overflow-y: auto;
+    background: #e5ddd5;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* MESSAGE BUBBLES */
+.message {
+    max-width: 75%;
+    padding: 10px;
+    border-radius: 15px;
+    font-size: 14px;
+    line-height: 1.4;
+    word-wrap: break-word;
+}
+
+/* SENT MESSAGE */
+.message.sent {
+    align-self: flex-end;
+    background: #0084ff;
+    color: white;
+    border-bottom-right-radius: 5px;
+}
+
+/* RECEIVED MESSAGE */
+.message.received {
+    align-self: flex-start;
+    background: #fff;
+    color: #333;
+    border-bottom-left-radius: 5px;
+}
+
+/* TYPING INDICATOR */
+#typingIndicator {
+    font-size: 12px;
+    padding: 5px 10px;
+    color: gray;
+    height: 20px;
+}
+
+/* INPUT AREA */
+.input-area {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    background: #fff;
+    border-top: 1px solid #ddd;
+}
+
+.input-area input[type="text"] {
+    flex: 1;
+    padding: 10px;
+    border-radius: 20px;
+    border: 1px solid #ccc;
+    outline: none;
+    margin: 0 8px;
+}
+
+/* BUTTONS */
+.send-btn,
+.media-btn {
+    background: #0084ff;
+    border: none;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+/* MEDIA PICKER */
+.media-picker {
+    position: absolute;
+    bottom: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: white;
+    padding: 10px;
+    border-radius: 12px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+.media-options button {
+    display: block;
+    width: 100%;
+    margin: 5px 0;
+    padding: 8px;
+    border: none;
+    background: #f0f0f0;
+    border-radius: 8px;
+    cursor: pointer;
+}
+/* CALL PANEL (Full overlay style) */
+.call-panel {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    z-index: 999;
+}
+
+/* TOP BAR */
+.call-topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.7);
+    color: #fff;
+    font-size: 14px;
+    backdrop-filter: blur(10px);
+}
+
+/* CALL STATUS TEXT */
+#callStatus {
+    font-weight: 500;
+}
+
+/* CALL CONTROLS */
+.call-controls button {
+    margin-left: 8px;
+    padding: 6px 12px;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+/* ANSWER BUTTON */
+#answerCallBtn {
+    background: #00c853;
+    color: white;
+}
+
+/* END CALL BUTTON */
+.danger-btn {
+    background: #ff1744;
+    color: white;
+}
+
+/* VIDEO AREA */
+.call-videos {
+    flex: 1;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: black;
+}
+
+/* REMOTE VIDEO (main screen) */
+#remoteVideo {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* LOCAL VIDEO (small floating preview) */
+#localVideo {
+    position: absolute;
+    bottom: 15px;
+    right: 15px;
+    width: 120px;
+    height: 160px;
+    border-radius: 12px;
+    border: 2px solid white;
+    object-fit: cover;
+    background: #111;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+}
+
+/* RESPONSIVE */
+@media (max-width: 500px) {
+    #localVideo {
+        width: 90px;
+        height: 120px;
+    }
+}
