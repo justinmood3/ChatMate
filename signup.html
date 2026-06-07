@@ -1,60 +1,63 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>ChatMate</title>
-        <link rel="icon" type="image/png" href="mate.png">
-        <link rel="apple-touch-icon" href="mate.png">
-        <link rel="stylesheet" href="style.css">
-    </head>
-    <body class="auth-page">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChatMate</title>
+<link rel="stylesheet" href="style.css">
+</head>
+
+<body class="auth-page">
 
 <div class="auth-shell">
+
 <div class="auth-visual">
-    <div class="brand-mark"><img src="mate.png" alt="ChatMate icon"></div>
     <h1>ChatMate</h1>
-    <p>Create your profile and start messaging in real time.</p>
+    <p>Create your account</p>
 </div>
 
 <div class="login-box">
 
-    <h2>ChatMate</h2>
-    <p class="auth-subtitle">Create your account to get started.</p>
-
     <input type="text" id="username" placeholder="Username">
-
     <input type="email" id="email" placeholder="Email">
-
     <input type="password" id="password" placeholder="Password">
 
+    <input type="text" id="emailVerificationCode" placeholder="Email code">
+
+    <button onclick="verifyEmailCode()">Verify Email</button>
+    <button onclick="resendVerification()">Resend Code</button>
     <button onclick="signup()">Sign Up</button>
 
-    <div class="auth-divider">or</div>
+    <hr>
 
-    <input type="tel" id="phone" placeholder="Phone number, e.g. +15551234567">
+    <input type="tel" id="phone" placeholder="+250...">
 
     <div id="recaptcha-container"></div>
-    <div id="phone-status" class="phone-status"></div>
 
-    <button onclick="sendPhoneCode()">Send SMS Code</button>
+    <input type="text" id="phoneVerificationCode" placeholder="SMS code">
 
-    <div id="phone-code-area" hidden>
-        <input type="text" id="verificationCode" placeholder="Verification code">
-        <button onclick="verifyPhoneCode()">Verify Phone</button>
-    </div>
+    <button onclick="sendPhoneCode()">Send SMS</button>
+    <button onclick="verifyPhoneCode()">Verify Phone</button>
 
 </div>
+
 </div>
 
+<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
+<!-- config FIRST -->
 <script src="firebase-config.js"></script>
 
-<script src="auth.js"></script>
+<!-- EmailJS -->
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script>
+  emailjs.init("3zyRvrvsaJx48Ig9w");
+</script>
 
-    </body>
+<!-- auth LAST -->
+<script src="auth.js"></script>
+</body>
 </html>

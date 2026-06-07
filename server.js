@@ -1,244 +1,213 @@
-/* ============================================================
-   server.js  —  ChatMate Media & Profile Upload Server
-   Stack: Express · Multer · Firebase Admin SDK
-   ============================================================
-
-   Setup:
-     1.  npm install express multer firebase-admin uuid cors dotenv
-     2.  Create a .env file (see bottom of this file for template)
-     3.  Download your Firebase service-account key JSON from:
-           Firebase Console → Project Settings → Service Accounts
-           → Generate new private key
-     4.  node server.js   (or: npx nodemon server.js for dev)
-   ============================================================ */
-
-'use strict';
-
+// server.js
+const express = require('express');
+const multer = require('multer');
+const admin = require('firebase-admin');
+const cors = require('cors');
+const path = require('path');
+const { v4: uuidv4 } = require('uuid');
 require('dotenv').config();
 
-const express  = require('express');
-const multer   = require('multer');
-const admin    = require('firebase-admin');
-const cors     = require('cors');
-const path     = require('path');
-const { v4: uuidv4 } = require('uuid');
-const { getDownloadURL } = require('firebase-admin/storage');
-
-/* ── 1. Firebase Admin init ──────────────────────────────── */
-
-const serviceAccount = require(
-    process.env.FIREBASE_KEY_PATH || './firebase-adminsdk-key.json'
-);
+// Initialize Firebase Admin
+const serviceAccount = require('./firebase-adminsdk-key.json');
 
 admin.initializeApp({
-    credential:    admin.credential.cert(serviceAccount),
-    databaseURL:   process.env.FIREBASE_DATABASE_URL
-                   || 'https://chatmates-1abc2-default-rtdb.firebaseio.com/',
+    credential: admin.credential.cert(serviceAccount),
+    databaseURL: process.env.FIREBASE_DATABASE_URL,
     storageBucket: process.env.FIREBASE_STORAGE_BUCKET
-                   || 'chatmates-1abc2.appspot.com'
 });
 
 const bucket = admin.storage().bucket();
-const db     = admin.database();           // server-side Realtime DB access
-
-/* ── 2. Express app ──────────────────────────────────────── */
-
+const db = admin.database();
 const app = express();
 
-/* Allow your frontend origin.
-   In production replace '*' with your exact domain, e.g.
-   'https://chatmates-1abc2.web.app'                         */
+// Middleware
 app.use(cors({
-    origin: process.env.CORS_ORIGIN || '*',
-    methods: ['GET', 'POST']
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE']
 }));
-
 app.use(express.json());
-
-/* Serve static frontend files from the same folder           */
 app.use(express.static(path.join(__dirname)));
 
-/* ── 3. Multer (in-memory, 10 MB cap) ───────────────────── */
-
-const ALLOWED_MIME_PREFIXES = ['image/', 'video/', 'audio/'];
-const ALLOWED_DOCUMENT_TYPES = [
-    'application/pdf',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'text/plain',
-    'application/zip'
-];
-
-function fileFilter(_req, file, cb) {
-    const ok =
-        ALLOWED_MIME_PREFIXES.some(p => file.mimetype.startsWith(p)) ||
-        ALLOWED_DOCUMENT_TYPES.includes(file.mimetype);
-
-    if (ok) {
-        cb(null, true);
-    } else {
-        cb(new Error(`File type not allowed: ${file.mimetype}`));
-    }
-}
-
+// Multer configuration
 const upload = multer({
     storage: multer.memoryStorage(),
-    limits:  { fileSize: 10 * 1024 * 1024 },   // 10 MB
-    fileFilter
+    limits: { fileSize: 10 * 1024 * 1024 } // 10MB
 });
 
-/* Profile photos get a tighter 5 MB cap                      */
 const uploadProfile = multer({
     storage: multer.memoryStorage(),
-    limits:  { fileSize: 5 * 1024 * 1024 },
-    fileFilter(req, file, cb) {
-        file.mimetype.startsWith('image/')
-            ? cb(null, true)
-            : cb(new Error('Profile photo must be an image.'));
-    }
+    limits: { fileSize: 5 * 1024 * 1024 } // 5MB for profile photos
 });
 
-/* ── 4. Helpers ──────────────────────────────────────────── */
-
-/**
- * Upload a buffer to Firebase Storage and return a permanent
- * download URL (token-authenticated).
- */
+// Helper function to upload to Firebase Storage
 async function uploadToStorage(buffer, mimeType, storagePath) {
-    const blob       = bucket.file(storagePath);
-    const blobStream = blob.createWriteStream({
-        resumable: false,
-        metadata:  { contentType: mimeType }
+    const file = bucket.file(storagePath);
+    const stream = file.createWriteStream({
+        metadata: { contentType: mimeType },
+        resumable: false
     });
 
-    await new Promise((resolve, reject) => {
-        blobStream.on('error', reject);
-        blobStream.on('finish', resolve);
-        blobStream.end(buffer);
+    return new Promise((resolve, reject) => {
+        stream.on('error', reject);
+        stream.on('finish', async () => {
+            try {
+                // Make file public
+                await file.makePublic();
+                const publicUrl = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
+                resolve(publicUrl);
+            } catch (err) {
+                reject(err);
+            }
+        });
+        stream.end(buffer);
     });
-
-    return getDownloadURL(blob);   // permanent, token-authenticated URL
 }
 
-/**
- * Derive the logical media type bucket from a MIME type.
- */
-function resolveMediaType(mimeType) {
-    if (mimeType.startsWith('image/'))  return 'images';
-    if (mimeType.startsWith('video/'))  return 'videos';
-    if (mimeType.startsWith('audio/'))  return 'voice';
-    return 'documents';
-}
+// ==================== API ROUTES ====================
 
-/* ── 5. Routes ───────────────────────────────────────────── */
+// Health check
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
-/* ── POST /api/upload  (chat media: images, video, audio, docs) */
-app.post('/api/upload', upload.single('mediaFile'), async (req, res) => {
+// Upload chat media
+app.post('/api/upload', upload.single('file'), async (req, res) => {
     try {
-        const file = req.file;
-        if (!file) {
-            return res.status(400).json({ error: 'No file received. Send the file as multipart/form-data with field name "mediaFile".' });
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded' });
         }
 
-        /* Optional metadata sent by the client */
-        const chatId    = req.body.chatId    || 'general';
-        const senderId  = req.body.senderId  || 'unknown';
-        const mediaType = resolveMediaType(file.mimetype);
+        const { chatId, senderId } = req.body;
+        if (!chatId || !senderId) {
+            return res.status(400).json({ error: 'chatId and senderId are required' });
+        }
 
-        const uniqueName  = `${uuidv4()}_${file.originalname}`;
-        const storagePath = `chat_media/${chatId}/${mediaType}/${uniqueName}`;
+        // Determine media type folder
+        let mediaType = 'files';
+        if (req.file.mimetype.startsWith('image/')) mediaType = 'images';
+        else if (req.file.mimetype.startsWith('video/')) mediaType = 'videos';
+        else if (req.file.mimetype.startsWith('audio/')) mediaType = 'audio';
+        else mediaType = 'documents';
 
-        const downloadUrl = await uploadToStorage(
-            file.buffer,
-            file.mimetype,
+        const timestamp = Date.now();
+        const uniqueName = `${timestamp}_${uuidv4()}_${req.file.originalname}`;
+        const storagePath = `media/${chatId}/${mediaType}/${uniqueName}`;
+
+        const fileUrl = await uploadToStorage(
+            req.file.buffer,
+            req.file.mimetype,
             storagePath
         );
 
-        return res.status(200).json({
-            message:   'Upload successful.',
-            fileName:  uniqueName,
-            mediaType,
-            fileUrl:   downloadUrl
+        res.json({
+            success: true,
+            url: fileUrl,
+            fileName: req.file.originalname,
+            mediaType: mediaType,
+            fileSize: req.file.size,
+            mimeType: req.file.mimetype
         });
 
-    } catch (err) {
-        console.error('[/api/upload]', err);
-        return res.status(500).json({ error: 'Upload failed.', details: err.message });
+    } catch (error) {
+        console.error('Upload error:', error);
+        res.status(500).json({ error: error.message });
     }
 });
 
-/* ── POST /api/upload-profile  (profile photo + name/status) */
-app.post('/api/upload-profile', uploadProfile.single('photo'), async (req, res) => {
+// Save profile (with optional photo)
+app.post('/api/profile', uploadProfile.single('photo'), async (req, res) => {
     try {
-        const { userId, username, status } = req.body;
-
+        const { userId, username, status, email } = req.body;
+        
         if (!userId) {
-            return res.status(400).json({ error: 'userId is required.' });
+            return res.status(400).json({ error: 'userId is required' });
         }
 
         const updates = {
-            username:  username  || null,
-            status:    status    || null,
-            email:     req.body.email || null,
-            online:    true,
-            lastSeen:  Date.now()
+            username: username || email?.split('@')[0] || 'User',
+            displayName: username || email?.split('@')[0] || 'User',
+            status: status || 'Available',
+            email: email || '',
+            online: true,
+            lastSeen: Date.now(),
+            updatedAt: Date.now()
         };
 
-        /* If a photo was attached, upload it first */
+        // Upload photo if provided
         if (req.file) {
-            const uniqueName  = `${uuidv4()}_${req.file.originalname}`;
+            const timestamp = Date.now();
+            const uniqueName = `${timestamp}_${uuidv4()}_${req.file.originalname}`;
             const storagePath = `profiles/${userId}/${uniqueName}`;
-
+            
             const photoUrl = await uploadToStorage(
                 req.file.buffer,
                 req.file.mimetype,
                 storagePath
             );
-
+            
             updates.photo = photoUrl;
         }
 
-        /* Persist to Realtime Database */
+        // Save to Firebase Realtime Database
         await db.ref(`users/${userId}`).update(updates);
 
-        return res.status(200).json({
-            message: 'Profile saved.',
-            profile: updates
+        // Get the updated profile
+        const snapshot = await db.ref(`users/${userId}`).once('value');
+        const profile = snapshot.val();
+
+        res.json({
+            success: true,
+            message: 'Profile saved successfully',
+            profile: profile
         });
 
-    } catch (err) {
-        console.error('[/api/upload-profile]', err);
-        return res.status(500).json({ error: 'Profile save failed.', details: err.message });
+    } catch (error) {
+        console.error('Profile save error:', error);
+        res.status(500).json({ error: error.message });
     }
 });
 
-/* ── GET /api/health ── quick liveness check ── */
-app.get('/api/health', (_req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+// Get user profile
+app.get('/api/profile/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const snapshot = await db.ref(`users/${userId}`).once('value');
+        const profile = snapshot.val();
+        
+        res.json({
+            success: true,
+            profile: profile || null
+        });
+    } catch (error) {
+        console.error('Get profile error:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
-/* ── 6. Global error handler ─────────────────────────────── */
-app.use((err, _req, res, _next) => {
-    console.error('[Unhandled]', err);
-    res.status(err.status || 500).json({ error: err.message || 'Internal Server Error' });
+// Get all users
+app.get('/api/users', async (req, res) => {
+    try {
+        const snapshot = await db.ref('users').once('value');
+        const users = snapshot.val() || {};
+        
+        res.json({
+            success: true,
+            users: users
+        });
+    } catch (error) {
+        console.error('Get users error:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
-/* ── 7. Start ────────────────────────────────────────────── */
+// Serve static files
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`ChatMate server running → http://localhost:${PORT}`);
+    console.log(`✅ ChatMate server running on http://localhost:${PORT}`);
+    console.log(`📁 Storage bucket: ${bucket.name}`);
 });
-
-/* ============================================================
-   .env template — create this file next to server.js
-   ============================================================
-
-   FIREBASE_KEY_PATH=./firebase-adminsdk-key.json
-   FIREBASE_DATABASE_URL=https://chatmates-1abc2-default-rtdb.firebaseio.com/
-   FIREBASE_STORAGE_BUCKET=chatmates-1abc2.appspot.com
-   CORS_ORIGIN=https://your-production-domain.com
-   PORT=3000
-
-   ============================================================ */

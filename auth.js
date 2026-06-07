@@ -1,210 +1,152 @@
-let confirmationResult = null;
-let recaptchaVerifier;
+'use strict';
 
-function getValue(id){
-    const element = document.getElementById(id);
-    return element ? element.value.trim() : "";
+const auth = firebase.auth();
+const db = firebase.database();
+
+/* ================= UTIL ================= */
+
+function getValue(id) {
+    const el = document.getElementById(id);
+    return el ? el.value.trim() : "";
 }
 
-function showAuthError(error, fallbackMessage){
-    console.error("Firebase auth error:", error);
-
-    const code = error && error.code ? error.code : "auth/unknown";
-    const message = error && error.message ? error.message : fallbackMessage;
-
-    const fixes = {
-        "auth/internal-error": "Firebase returned an internal auth error. For phone login, check that Phone is enabled in Firebase Authentication, your page is running from http://localhost or a real authorized domain, and the domain is listed in Authentication > Settings > Authorized domains.",
-        "auth/operation-not-allowed": "This sign-in method is disabled. Enable Email/Password or Phone in Firebase Authentication > Sign-in method.",
-        "auth/invalid-phone-number": "Use the full phone number with country code, for example +15551234567.",
-        "auth/captcha-check-failed": "The reCAPTCHA check failed. Refresh the page and make sure this app is opened from an authorized domain.",
-        "auth/too-many-requests": "Firebase blocked requests temporarily because too many attempts were made. Wait a bit, or use a Firebase test phone number while developing.",
-        "auth/invalid-verification-code": "That SMS code is not correct. Check the code and try again."
-    };
-
-    alert((fixes[code] || message) + "\n\nCode: " + code);
+function generateCode() {
+    return Math.floor(100000 + Math.random() * 900000);
 }
 
-function showPhoneStep(show){
-    const codeArea = document.getElementById("phone-code-area");
-    if(codeArea){
-        codeArea.hidden = !show;
-    }
-}
-
-function updatePhoneStatus(message){
-    const statusEl = document.getElementById("phone-status");
-    if(statusEl){
-        statusEl.textContent = message || "";
-    }
-}
-
-function setupRecaptcha() {
-    recaptchaVerifier = new firebase.auth.RecaptchaVerifier(
-        "recaptcha-container",
-        {
-            size: "normal",
-            callback: function(response) {
-                updatePhoneStatus("✅ reCAPTCHA verified. Now send the SMS code.");
-            },
-            "expired-callback": function(){
-                updatePhoneStatus("reCAPTCHA expired. Refresh the page and try again.");
-            }
-        }
-    );
-
-    recaptchaVerifier.render();
-}
-
-function ensureRecaptcha(){
-    if(!recaptchaVerifier){
-        setupRecaptcha();
-    }
-    return recaptchaVerifier;
-}
-function saveUserProfile(user, extraData){
-    const username = getValue("username");
-
-    return db.ref("users/" + user.uid).update({
-        username: username || extraData.username || user.displayName || user.email || user.phoneNumber || "New user",
-        status: extraData.status || "",
-        photo: extraData.photo || "",
-        email: user.email || extraData.email || "",
-        phone: user.phoneNumber || extraData.phone || "",
-        online: true,
-        lastSeen: Date.now(),
-        createdAt: extraData.createdAt || Date.now()
+function sendEmailCode(email, code) {
+    return emailjs.send("service_cquxd0f", "template_246i6ro", {
+        email,
+        code
     });
 }
 
-function signup(){
+/* ================= SIGNUP ================= */
+
+window.signup = async function () {
     const email = getValue("email");
     const password = getValue("password");
 
-    if(!email || !password){
-        alert("Enter an email and password to sign up, or use phone sign in below.");
+    if (!email || !password) {
+        alert("Enter email and password");
         return;
     }
 
-    firebase.auth()
-        .createUserWithEmailAndPassword(email, password)
-        .then((credential)=>{
-            return saveUserProfile(credential.user, {
-                email: credential.user.email,
-                createdAt: Date.now()
-            });
-        })
-        .then(()=>{
-            alert("Account created");
-            window.location = "chat.html";
-        })
-        .catch((error)=>{
-            showAuthError(error, "Could not create your account.");
-        });
-}
+    try {
+        const cred = await auth.createUserWithEmailAndPassword(email, password);
+        const user = cred.user;
 
-function login(){
-    const email = getValue("email");
-    const password = getValue("password");
-
-    if(!email || !password){
-        alert("Enter your email and password, or use phone sign in below.");
-        return;
-    }
-
-    firebase.auth()
-        .signInWithEmailAndPassword(email, password)
-        .then((credential)=>{
-            return saveUserProfile(credential.user, {
-                email: credential.user.email
-            });
-        })
-        .then(()=>{
-            alert("Login successful");
-            window.location = "chat.html";
-        })
-        .catch((error)=>{
-            showAuthError(error, "Could not log you in.");
-        });
-}
-
-function sendPhoneCode(){
-    const phone = getValue("phone");
-
-    if(!phone){
-        updatePhoneStatus("Enter your phone number with country code, like +15551234567.");
-        alert("Enter your phone number with country code, like +15551234567.");
-        return;
-    }
-
-    if(window.location.protocol === "file:"){
-        alert("Phone login cannot run from a file opened directly. Start a local web server and open this app at http://localhost.");
-        return;
-    }
-
-    updatePhoneStatus("Sending SMS code to " + phone + "...");
-
-    firebase.auth()
-        .signInWithPhoneNumber(phone, ensureRecaptcha())
-        .then((result)=>{
-            confirmationResult = result;
-            showPhoneStep(true);
-            updatePhoneStatus("SMS verification code sent to " + phone + ". Enter it below.");
-            const codeInput = document.getElementById("verificationCode");
-            if(codeInput){
-                codeInput.focus();
-            }
-            alert("SMS verification code sent");
-        })
-        .catch((error)=>{
-            if(recaptchaVerifier){
-                recaptchaVerifier.clear();
-                recaptchaVerifier = null;
-            }
-            updatePhoneStatus("Could not send the verification code. Check the phone number and try again.");
-            showAuthError(error, "Could not send the phone verification code.");
-        });
-}
-
-function verifyPhoneCode(){
-    const code = getValue("verificationCode");
-
-    if(!confirmationResult){
-        alert("Send a phone verification code first.");
-        return;
-    }
-
-    if(!code){
-        alert("Enter the verification code.");
-        return;
-    }
-
-    confirmationResult.confirm(code)
-        .then((credential)=>{
-            return saveUserProfile(credential.user, {
-                phone: credential.user.phoneNumber,
-                createdAt: Date.now()
-            });
-        })
-        .then(()=>{
-            updatePhoneStatus("Phone login successful. Redirecting to chat...");
-            alert("Phone login successful");
-            window.location = "chat.html";
-        })
-        .catch((error)=>{
-            updatePhoneStatus("The verification code is invalid. Please check the SMS and try again.");
-            showAuthError(error, "Could not verify the phone code.");
-        });
-}
-
-firebase.auth().onAuthStateChanged((user)=>{
-    if(user){
-        db.ref("users/" + user.uid).update({
-            email: user.email || "",
-            phone: user.phoneNumber || "",
+        // create user in database (IMPORTANT FIX)
+        await db.ref("users/" + user.uid).set({
+            uid: user.uid,
+            email: user.email,
+            username: email.split("@")[0],
+            photo: "",
+            status: "Available",
             online: true,
+            verified: false,
+            createdAt: Date.now()
+        });
+
+        const code = generateCode();
+
+        await db.ref("emailCodes/" + user.uid).set({
+            code,
+            email,
+            verified: false,
+            createdAt: Date.now()
+        });
+
+        await sendEmailCode(email, code);
+
+        alert("OTP sent to email!");
+        await auth.signOut();
+
+    } catch (err) {
+        console.error(err);
+        alert(err.message);
+    }
+};
+
+/* ================= VERIFY OTP ================= */
+
+window.verifyEmailCode = async function () {
+    const codeInput = getValue("emailVerificationCode");
+    const user = auth.currentUser;
+
+    if (!user) return alert("Login first");
+
+    const snap = await db.ref("emailCodes/" + user.uid).once("value");
+    const data = snap.val();
+
+    if (!data) return alert("No code found");
+
+    if (Number(data.code) === Number(codeInput)) {
+        await db.ref("users/" + user.uid).update({
+            verified: true
+        });
+
+        alert("Verified!");
+        window.location = "chat.html";
+    } else {
+        alert("Wrong code");
+    }
+};
+
+/* ================= LOGIN ================= */
+
+window.login = async function () {
+    const email = getValue("email");
+    const password = getValue("password");
+
+    try {
+        const cred = await auth.signInWithEmailAndPassword(email, password);
+        const user = cred.user;
+
+        await db.ref("users/" + user.uid).update({
+            online: true,
+            email: user.email,
             lastSeen: Date.now()
         });
-    } else if(window.location.pathname.endsWith("chat.html")) {
-        window.location = "login.html";
+
+        window.location = "chat.html";
+    } catch (err) {
+        alert(err.message);
     }
+};
+
+/* ================= GOOGLE LOGIN ================= */
+
+window.googleLogin = async function () {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    const result = await auth.signInWithPopup(provider);
+
+    await db.ref("users/" + result.user.uid).set({
+        uid: result.user.uid,
+        email: result.user.email,
+        username: result.user.displayName,
+        photo: result.user.photoURL,
+        status: "Available",
+        online: true,
+        verified: true,
+        createdAt: Date.now()
+    });
+
+    window.location = "chat.html";
+};
+
+/* ================= AUTH STATE ================= */
+
+auth.onAuthStateChanged(user => {
+    if (!user) return;
+
+    db.ref("users/" + user.uid).update({
+        online: true,
+        lastSeen: Date.now()
+    });
+
+    db.ref("users/" + user.uid).onDisconnect().update({
+        online: false,
+        lastSeen: Date.now()
+    });
 });

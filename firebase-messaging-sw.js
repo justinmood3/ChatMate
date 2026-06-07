@@ -12,13 +12,28 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-messaging.onBackgroundMessage(function(payload){
+// BACKGROUND MESSAGE
+messaging.onBackgroundMessage((payload) => {
+
   const notification = payload.notification || {};
 
-  self.registration.showNotification(
-    notification.title || "New Message",
-    {
-      body: notification.body || ""
+  const title = notification.title || "ChatMate";
+  const options = {
+    body: notification.body || "",
+    icon: "/mate.png",   // IMPORTANT FIX
+    data: {
+      url: "/chat.html"
     }
+  };
+
+  self.registration.showNotification(title, options);
+});
+
+// CLICK ACTION (OPEN CHAT)
+self.addEventListener("notificationclick", function(event) {
+  event.notification.close();
+
+  event.waitUntil(
+    clients.openWindow(event.notification.data?.url || "/chat.html")
   );
 });

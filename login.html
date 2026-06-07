@@ -22,9 +22,16 @@
     <h2>ChatMate</h2>
     <p class="auth-subtitle">Welcome back. Sign in to continue your conversations.</p>
 
+    <button onclick="googleLogin()">
+    Continue with Google
+</button>
+     
     <input type="email" id="email" placeholder="Email">
 
     <input type="password" id="password" placeholder="Password">
+    <button onclick="resetPassword()">
+    Forgot Password
+</button>
 
     <button onclick="login()">Login</button>
     <p>Don't have account  <a href="signup.html">Sign Up</a></p>
@@ -54,6 +61,9 @@
 <script src="firebase-config.js"></script>
 
 <script src="auth.js"></script>
+
+<script src="login.js"></script>
+
 
 </body>
 </html>
