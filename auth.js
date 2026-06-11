@@ -1,152 +1,364 @@
+// auth.js - Firebase Email Verification (No EmailJS)
 'use strict';
 
-const auth = firebase.auth();
-const db = firebase.database();
-
-/* ================= UTIL ================= */
+const auth = window.auth;
+const db = window.db;
 
 function getValue(id) {
     const el = document.getElementById(id);
     return el ? el.value.trim() : "";
 }
 
-function generateCode() {
-    return Math.floor(100000 + Math.random() * 900000);
+function showMessage(message, type = 'error') {
+    const msgDiv = document.getElementById('message');
+    if (msgDiv) {
+        msgDiv.textContent = message;
+        msgDiv.className = `message ${type}`;
+        msgDiv.style.display = 'block';
+        setTimeout(() => {
+            msgDiv.style.display = 'none';
+        }, 5000);
+    } else {
+        alert(message);
+    }
 }
 
-function sendEmailCode(email, code) {
-    return emailjs.send("service_cquxd0f", "template_246i6ro", {
-        email,
-        code
-    });
-}
-
-/* ================= SIGNUP ================= */
-
+// ==================== SIGNUP WITH FIREBASE EMAIL VERIFICATION ====================
 window.signup = async function () {
+    console.log("Signup function called");
+    
+    const username = getValue("username");
     const email = getValue("email");
     const password = getValue("password");
-
-    if (!email || !password) {
-        alert("Enter email and password");
+    const btn = event.target;
+    
+    // Validation
+    if (!username) {
+        showMessage("Please enter a username", "error");
+        return;
+    }
+    
+    if (username.length < 3) {
+        showMessage("Username must be at least 3 characters", "error");
+        return;
+    }
+    
+    if (!email) {
+        showMessage("Please enter an email address", "error");
+        return;
+    }
+    
+    if (!email.includes('@')) {
+        showMessage("Please enter a valid email address", "error");
+        return;
+    }
+    
+    if (!password) {
+        showMessage("Please enter a password", "error");
+        return;
+    }
+    
+    if (password.length < 6) {
+        showMessage("Password must be at least 6 characters", "error");
         return;
     }
 
-    try {
-        const cred = await auth.createUserWithEmailAndPassword(email, password);
-        const user = cred.user;
+    btn.disabled = true;
+    btn.textContent = "Creating account...";
 
-        // create user in database (IMPORTANT FIX)
+    try {
+        // Create user in Firebase Auth
+        const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+        const user = userCredential.user;
+        
+        console.log("User created:", user.uid);
+        
+        // Update profile with username
+        await user.updateProfile({ displayName: username });
+        
+        // Send verification email (Firebase built-in)
+        await user.sendEmailVerification();
+        console.log("Verification email sent to:", email);
+        
+        // Create user profile in database (email not verified yet)
         await db.ref("users/" + user.uid).set({
             uid: user.uid,
-            email: user.email,
-            username: email.split("@")[0],
+            email: email,
+            username: username,
+            displayName: username,
             photo: "",
             status: "Available",
-            online: true,
-            verified: false,
-            createdAt: Date.now()
+            online: false,
+            emailVerified: false,
+            friends: {},
+            friendRequests: {},
+            sentRequests: {},
+            createdAt: Date.now(),
+            lastSeen: Date.now()
         });
-
-        const code = generateCode();
-
-        await db.ref("emailCodes/" + user.uid).set({
-            code,
-            email,
-            verified: false,
-            createdAt: Date.now()
-        });
-
-        await sendEmailCode(email, code);
-
-        alert("OTP sent to email!");
-        await auth.signOut();
-
+        
+        showMessage(`Verification email sent to ${email}! Please check your inbox.`, "success");
+        
+        // Show verification UI, hide signup UI
+        const signupSection = document.getElementById("signupSection");
+        const verifySection = document.getElementById("verifySection");
+        const verificationEmail = document.getElementById("verificationEmail");
+        
+        if (signupSection) signupSection.style.display = "none";
+        if (verifySection) verifySection.style.display = "block";
+        if (verificationEmail) verificationEmail.textContent = email;
+        
     } catch (err) {
-        console.error(err);
-        alert(err.message);
+        console.error("Signup error:", err);
+        
+        let errorMessage = "";
+        if (err.code === 'auth/email-already-in-use') {
+            errorMessage = "Email already registered. Please login.";
+        } else if (err.code === 'auth/weak-password') {
+            errorMessage = "Password is too weak. Use at least 6 characters.";
+        } else if (err.code === 'auth/invalid-email') {
+            errorMessage = "Invalid email address.";
+        } else {
+            errorMessage = err.message || "Signup failed. Please try again.";
+        }
+        
+        showMessage(errorMessage, "error");
+    } finally {
+        btn.disabled = false;
+        btn.textContent = "Sign Up";
     }
 };
 
-/* ================= VERIFY OTP ================= */
-
-window.verifyEmailCode = async function () {
-    const codeInput = getValue("emailVerificationCode");
+// ==================== CHECK VERIFICATION STATUS ====================
+window.checkVerificationStatus = async function () {
     const user = auth.currentUser;
-
-    if (!user) return alert("Login first");
-
-    const snap = await db.ref("emailCodes/" + user.uid).once("value");
-    const data = snap.val();
-
-    if (!data) return alert("No code found");
-
-    if (Number(data.code) === Number(codeInput)) {
-        await db.ref("users/" + user.uid).update({
-            verified: true
-        });
-
-        alert("Verified!");
-        window.location = "chat.html";
-    } else {
-        alert("Wrong code");
+    if (!user) {
+        showMessage("No user found. Please sign up again.", "error");
+        return;
+    }
+    
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = "Checking...";
+    
+    try {
+        // Reload user to get latest emailVerified status
+        await user.reload();
+        
+        if (user.emailVerified) {
+            // Update database
+            await db.ref("users/" + user.uid).update({
+                online: true,
+                emailVerified: true,
+                lastSeen: Date.now()
+            });
+            
+            showMessage("Email verified! Redirecting to chat...", "success");
+            setTimeout(() => {
+                window.location.href = "chat.html";
+            }, 1500);
+        } else {
+            showMessage("Email not verified yet. Please check your inbox and click the verification link.", "info");
+        }
+    } catch (err) {
+        console.error("Check verification error:", err);
+        showMessage(err.message, "error");
+    } finally {
+        btn.disabled = false;
+        btn.textContent = "I've Verified My Email";
     }
 };
 
-/* ================= LOGIN ================= */
+// ==================== RESEND VERIFICATION EMAIL ====================
+window.resendVerificationEmail = async function () {
+    const user = auth.currentUser;
+    if (!user) {
+        showMessage("No user found. Please sign up again.", "error");
+        return;
+    }
+    
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = "Sending...";
+    
+    try {
+        await user.sendEmailVerification();
+        showMessage(`Verification email sent to ${user.email}!`, "success");
+    } catch (err) {
+        console.error("Resend error:", err);
+        showMessage(err.message, "error");
+    } finally {
+        btn.disabled = false;
+        btn.textContent = "Resend Email";
+    }
+};
 
+// ==================== LOGIN ====================
 window.login = async function () {
     const email = getValue("email");
     const password = getValue("password");
-
+    const btn = event.target;
+    
+    if (!email || !password) {
+        showMessage("Enter email and password", "error");
+        return;
+    }
+    
+    btn.disabled = true;
+    btn.textContent = "Logging in...";
+    
     try {
         const cred = await auth.signInWithEmailAndPassword(email, password);
         const user = cred.user;
-
-        await db.ref("users/" + user.uid).update({
-            online: true,
-            email: user.email,
-            lastSeen: Date.now()
-        });
-
-        window.location = "chat.html";
+        
+        // Check if email is verified
+        if (!user.emailVerified) {
+            showMessage("Please verify your email first. Check your inbox.", "info");
+            btn.disabled = false;
+            btn.textContent = "Login";
+            return;
+        }
+        
+        const userSnap = await db.ref("users/" + user.uid).once("value");
+        
+        if (!userSnap.exists()) {
+            await db.ref("users/" + user.uid).set({
+                uid: user.uid,
+                email: email,
+                username: email.split('@')[0],
+                displayName: email.split('@')[0],
+                photo: "",
+                status: "Available",
+                online: true,
+                emailVerified: true,
+                friends: {},
+                friendRequests: {},
+                sentRequests: {},
+                createdAt: Date.now(),
+                lastSeen: Date.now()
+            });
+        } else {
+            await db.ref("users/" + user.uid).update({
+                online: true,
+                lastSeen: Date.now()
+            });
+        }
+        
+        showMessage("Login successful!", "success");
+        setTimeout(() => {
+            window.location.href = "chat.html";
+        }, 1500);
+        
     } catch (err) {
-        alert(err.message);
+        console.error(err);
+        let errorMessage = err.code === 'auth/user-not-found' ? "No account found. Please sign up." :
+                          err.code === 'auth/wrong-password' ? "Incorrect password." : err.message;
+        showMessage(errorMessage, "error");
+    } finally {
+        btn.disabled = false;
+        btn.textContent = "Login";
     }
 };
 
-/* ================= GOOGLE LOGIN ================= */
-
+// ==================== GOOGLE LOGIN ====================
 window.googleLogin = async function () {
     const provider = new firebase.auth.GoogleAuthProvider();
-    const result = await auth.signInWithPopup(provider);
-
-    await db.ref("users/" + result.user.uid).set({
-        uid: result.user.uid,
-        email: result.user.email,
-        username: result.user.displayName,
-        photo: result.user.photoURL,
-        status: "Available",
-        online: true,
-        verified: true,
-        createdAt: Date.now()
-    });
-
-    window.location = "chat.html";
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = "Connecting...";
+    
+    try {
+        const result = await auth.signInWithPopup(provider);
+        const user = result.user;
+        const userSnap = await db.ref("users/" + user.uid).once("value");
+        
+        if (!userSnap.exists()) {
+            await db.ref("users/" + user.uid).set({
+                uid: user.uid,
+                email: user.email,
+                username: user.displayName || user.email.split("@")[0],
+                displayName: user.displayName || user.email.split("@")[0],
+                photo: user.photoURL || "",
+                status: "Available",
+                online: true,
+                emailVerified: true,
+                friends: {},
+                friendRequests: {},
+                sentRequests: {},
+                createdAt: Date.now(),
+                lastSeen: Date.now()
+            });
+        } else {
+            await db.ref("users/" + user.uid).update({
+                online: true,
+                lastSeen: Date.now()
+            });
+        }
+        
+        showMessage("Google login successful!", "success");
+        setTimeout(() => {
+            window.location.href = "chat.html";
+        }, 1500);
+        
+    } catch (err) {
+        showMessage(err.message, "error");
+    } finally {
+        btn.disabled = false;
+        btn.textContent = "Continue with Google";
+    }
 };
 
-/* ================= AUTH STATE ================= */
+window.googleSignUp = window.googleLogin;
 
-auth.onAuthStateChanged(user => {
+// ==================== RESET PASSWORD ====================
+window.resetPassword = async function () {
+    const email = getValue('email');
+    if (!email) {
+        showMessage('Enter your email address', 'error');
+        return;
+    }
+    
+    try {
+        await auth.sendPasswordResetEmail(email);
+        showMessage('Password reset email sent!', 'success');
+    } catch (err) {
+        showMessage(err.message, 'error');
+    }
+};
+
+// ==================== LOGOUT ====================
+window.logout = async function () {
+    const user = auth.currentUser;
+    if (user) {
+        await db.ref("users/" + user.uid).update({
+            online: false,
+            lastSeen: Date.now()
+        });
+    }
+    await auth.signOut();
+    window.location.href = "index.html";
+};
+
+// ==================== AUTH STATE ====================
+auth.onAuthStateChanged(async user => {
+    console.log("Auth state changed:", user ? user.uid : "No user");
     if (!user) return;
-
-    db.ref("users/" + user.uid).update({
-        online: true,
-        lastSeen: Date.now()
-    });
-
-    db.ref("users/" + user.uid).onDisconnect().update({
-        online: false,
-        lastSeen: Date.now()
-    });
+    
+    try {
+        const userSnap = await db.ref("users/" + user.uid).once("value");
+        if (userSnap.exists()) {
+            if (user.emailVerified) {
+                await db.ref("users/" + user.uid).update({
+                    online: true,
+                    lastSeen: Date.now()
+                });
+            }
+            db.ref("users/" + user.uid).onDisconnect().update({
+                online: false,
+                lastSeen: Date.now()
+            });
+        }
+    } catch (err) {
+        console.error("Auth state error:", err);
+    }
 });

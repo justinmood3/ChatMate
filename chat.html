@@ -40,15 +40,41 @@
                 <button class="secondary-btn" onclick="shareProfile()">📤 Share My Profile</button>
             </div>
 
+            <!-- Navigation Menu -->
+            <div class="sidebar-nav">
+                <a href="chat.html" class="sidebar-nav-item active">
+                    <span>💬</span>
+                    <span>Messages</span>
+                </a>
+                <a href="discover.html" class="sidebar-nav-item">
+                    <span>🌍</span>
+                    <span>Discover</span>
+                </a>
+                <a href="friends.html" class="sidebar-nav-item">
+                    <span>👥</span>
+                    <span>Friends</span>
+                </a>
+                <a href="devices.html" class="sidebar-nav-item">
+                    <span>📱</span>
+                    <span>Devices</span>
+                </a>
+            </div>
+
+            <!-- Search -->
             <div class="sidebar-search">
-                <input type="search" id="userSearch" placeholder="Search people..." oninput="filterUsers()">
+                <input type="search" id="userSearch" placeholder="Search friends..." oninput="filterUsers()">
             </div>
 
             <div class="section-heading">
                 <h3>Messages</h3>
             </div>
-            <div id="user-list" class="list-stack"></div>
+            
+            <!-- Friends List with Request Badge -->
+            <div style="position: relative; margin: 0 16px 8px;">
+                <div id="user-list" class="list-stack"></div>
+            </div>
 
+            <!-- Logout Button -->
             <button id="logoutBtn" class="logout-btn" onclick="logout()">🚪 Log out</button>
         </aside>
 
@@ -59,6 +85,7 @@
                     <div>
                         <strong id="activeChatName">Choose someone to chat</strong>
                         <span id="activeChatStatus">Select a person from Messages.</span>
+                        <span id="friendStatusBadge" class="friend-badge" style="display: none;">👥 Friend</span>
                     </div>
                 </div>
                 <div class="call-actions">
@@ -73,6 +100,10 @@
                     <strong>Your messages</strong>
                     <span>Select a user to start chatting</span>
                 </div>
+            </div>
+
+            <div class="encryption-status" id="encryptionStatus">
+                🔒 End-to-End Encrypted
             </div>
 
             <div id="typingIndicator" class="typing-indicator"></div>
@@ -98,6 +129,8 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
     <script src="firebase-config.js"></script>
+    <script src="encryption.js"></script>
     <script src="chat.js"></script>
+    <script src="auth.js"></script>
 </body>
 </html>

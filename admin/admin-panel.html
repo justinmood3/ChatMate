@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - ChatMate</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #f0f2f5;
+        }
+
+        .admin-navbar {
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .admin-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .admin-logo img {
+            width: 32px;
+            height: 32px;
+        }
+
+        .admin-logo h2 {
+            color: #333;
+            font-size: 20px;
+        }
+
+        .admin-stats {
+            display: flex;
+            gap: 20px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-card .number {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .stat-card .label {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .logout-btn {
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+
+        .admin-section {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .section-title {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #333;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+            display: inline-block;
+        }
+
+        .users-table {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #555;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .admin-badge {
+            background: #4CAF50;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 5px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .user-badge {
+            background: #999;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 5px;
+            font-size: 11px;
+        }
+
+        .online-status {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+
+        .online {
+            background: #4CAF50;
+            box-shadow: 0 0 5px #4CAF50;
+        }
+
+        .offline {
+            background: #999;
+        }
+
+        .delete-btn {
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 5px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .delete-btn:hover {
+            background: #da190b;
+        }
+
+        .make-admin-btn {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 5px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-right: 5px;
+        }
+
+        .search-box {
+            margin-bottom: 20px;
+        }
+
+        .search-box input {
+            width: 300px;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .modal-buttons {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .confirm-btn {
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .cancel-btn {
+            background: #999;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .refresh-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #333;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        }
+
+        .toast.success {
+            background: #4CAF50;
+        }
+
+        .toast.error {
+            background: #f44336;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-navbar">
+        <div class="admin-logo">
+            <img src="mate.png" alt="ChatMate">
+            <h2>Admin Panel</h2>
+        </div>
+        <div class="admin-stats">
+            <div class="stat-card">
+                <div class="number" id="totalUsers">0</div>
+                <div class="label">Total Users</div>
+            </div>
+            <div class="stat-card">
+                <div class="number" id="onlineUsers">0</div>
+                <div class="label">Online Now</div>
+            </div>
+        </div>
+        <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
+
+    <div class="container">
+        <div class="admin-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 class="section-title">User Management</h3>
+                <button class="refresh-btn" onclick="loadUsers()">🔄 Refresh</button>
+            </div>
+            
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Search by name or email..." onkeyup="searchUsers()">
+            </div>
+            
+            <div class="users-table">
+                <table id="usersTable">
+                    <thead>
+                        <tr>
+                            <th>Avatar</th>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Status</th>
+                            <th>Role</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersList">
+                        <tr><td colspan="6" class="loading">Loading users...<\/td><\/tr>
+                    </tbody>
+                瞄
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content">
+            <h3>Confirm Delete</h3>
+            <p>Are you sure you want to delete user: <strong id="deleteUserName"></strong>?</p>
+            <p style="color: red; font-size: 12px;">⚠️ This action cannot be undone!</p>
+            <div class="modal-buttons">
+                <button class="confirm-btn" onclick="confirmDelete()">Delete</button>
+                <button class="cancel-btn" onclick="closeModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+    <script src="../firebase-config.js"></script>
+    
+    <script>
+        const auth = firebase.auth();
+        const db = firebase.database();
+        let allUsers = [];
+        let userToDelete = null;
+        let currentAdmin = null;
+
+        // Show toast notification
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        // Check if user is admin
+        async function checkAdmin() {
+            const user = auth.currentUser;
+            if (!user) {
+                window.location.href = 'admin-login.html';
+                return false;
+            }
+            
+            try {
+                const idTokenResult = await user.getIdTokenResult();
+                if (idTokenResult.claims.admin === true) {
+                    currentAdmin = user;
+                    localStorage.setItem('isAdmin', 'true');
+                    localStorage.setItem('adminEmail', user.email);
+                    return true;
+                } else {
+                    localStorage.removeItem('isAdmin');
+                    localStorage.removeItem('adminEmail');
+                    alert('Access Denied: Admin privileges required.');
+                    window.location.href = 'admin-login.html';
+                    return false;
+                }
+            } catch (error) {
+                console.error('Error checking admin:', error);
+                window.location.href = 'admin-login.html';
+                return false;
+            }
+        }
+
+        // Load all users directly from Firebase
+        async function loadUsers() {
+            const usersList = document.getElementById('usersList');
+            usersList.innerHTML = '<tr><td colspan="6" class="loading">Loading users...<\/td><\/tr>';
+            
+            try {
+                // Get users from Firebase Realtime Database
+                const snapshot = await db.ref('users').once('value');
+                const users = snapshot.val() || {};
+                
+                // Get current user's friends to check status
+                const currentUser = auth.currentUser;
+                
+                allUsers = [];
+                let onlineCount = 0;
+                let totalCount = 0;
+                
+                for (const [uid, userData] of Object.entries(users)) {
+                    totalCount++;
+                    if (userData.online) onlineCount++;
+                    
+                    allUsers.push({
+                        uid: uid,
+                        username: userData.username || userData.displayName || 'No name',
+                        email: userData.email || 'No email',
+                        status: userData.status || 'Available',
+                        online: userData.online || false,
+                        lastSeen: userData.lastSeen || null,
+                        photo: userData.photo || null,
+                        admin: userData.admin || false,
+                        createdAt: userData.createdAt || null
+                    });
+                }
+                
+                document.getElementById('totalUsers').textContent = totalCount;
+                document.getElementById('onlineUsers').textContent = onlineCount;
+                
+                renderUsers(allUsers);
+                
+            } catch (error) {
+                console.error('Error loading users:', error);
+                usersList.innerHTML = '<tr><td colspan="6" class="loading">Error loading users: ' + error.message + '<\/td><\/tr>';
+                showToast('Error loading users: ' + error.message, 'error');
+            }
+        }
+
+        // Render users table
+        function renderUsers(users) {
+            const tbody = document.getElementById('usersList');
+            tbody.innerHTML = '';
+            
+            if (users.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="loading">No users found<\/td><\/tr>';
+                return;
+            }
+            
+            const adminEmail = localStorage.getItem('adminEmail');
+            
+            users.forEach(user => {
+                const row = tbody.insertRow();
+                const isCurrentUser = adminEmail === user.email;
+                const firstLetter = (user.username || 'U')[0].toUpperCase();
+                const avatarUrl = user.photo || `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='20' fill='%23667eea'/%3E%3Ctext x='20' y='26' text-anchor='middle' fill='white' font-size='16' font-weight='bold'%3E${firstLetter}%3C/text%3E%3C/svg%3E`;
+                
+                row.innerHTML = `
+                    <td><img src="${avatarUrl}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;"></td>
+                    <td><strong>${escapeHtml(user.username)}</strong></td>
+                    <td>${escapeHtml(user.email)}</td>
+                    <td>
+                        <span class="online-status ${user.online ? 'online' : 'offline'}"></span>
+                        ${user.online ? 'Online' : `Last seen ${formatTime(user.lastSeen)}`}
+                    </td>
+                    <td>${user.admin ? '<span class="admin-badge">👑 Admin</span>' : '<span class="user-badge">👤 User</span>'}</td>
+                    <td>
+                        ${!user.admin ? `<button class="make-admin-btn" onclick="makeAdmin('${user.uid}', '${escapeHtml(user.email)}')">Make Admin</button>` : ''}
+                        ${!isCurrentUser ? `<button class="delete-btn" onclick="showDeleteModal('${user.uid}', '${escapeHtml(user.username || user.email)}')">Delete</button>` : '<span style="color:#999;">Current</span>'}
+                    </td>
+                `;
+            });
+        }
+
+        // Search users
+        function searchUsers() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = allUsers.filter(user => 
+                (user.username && user.username.toLowerCase().includes(searchTerm)) ||
+                (user.email && user.email.toLowerCase().includes(searchTerm))
+            );
+            renderUsers(filtered);
+        }
+
+        // Make user admin (requires Cloud Function or Admin SDK)
+        async function makeAdmin(uid, email) {
+            if (!confirm(`Make ${email} an admin?`)) return;
+            
+            showToast(`To make ${email} admin, run: node set-admin.js ${email}`, 'info');
+            
+            // Copy command to clipboard
+            await navigator.clipboard.writeText(`node set-admin.js ${email}`);
+            showToast(`Command copied! Run in admin folder terminal`, 'success');
+        }
+
+        // Show delete confirmation modal
+        function showDeleteModal(uid, name) {
+            userToDelete = uid;
+            document.getElementById('deleteUserName').textContent = name;
+            document.getElementById('deleteModal').style.display = 'flex';
+        }
+
+        // Confirm delete (requires Admin SDK)
+        async function confirmDelete() {
+            if (!userToDelete) return;
+            closeModal();
+            
+            showToast(`To delete user, run: node delete-user.js ${userToDelete}`, 'info');
+            
+            // Copy command to clipboard
+            await navigator.clipboard.writeText(`node delete-user.js ${userToDelete}`);
+            showToast(`Command copied! Run in admin folder terminal`, 'success');
+        }
+
+        function closeModal() {
+            document.getElementById('deleteModal').style.display = 'none';
+            userToDelete = null;
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return String(text).replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+
+        function formatTime(timestamp) {
+            if (!timestamp) return 'Never';
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diff = Math.floor((now - date) / 1000 / 60);
+            
+            if (diff < 1) return 'Just now';
+            if (diff < 60) return `${diff} minutes ago`;
+            if (diff < 1440) return `${Math.floor(diff / 60)} hours ago`;
+            return date.toLocaleDateString();
+        }
+
+        async function logout() {
+            await auth.signOut();
+            localStorage.removeItem('isAdmin');
+            localStorage.removeItem('adminEmail');
+            window.location.href = 'admin-login.html';
+        }
+
+        // Initialize - Check Firebase auth state
+        auth.onAuthStateChanged(async (user) => {
+            if (user) {
+                const isAdmin = await checkAdmin();
+                if (isAdmin) {
+                    loadUsers();
+                    // Refresh every 30 seconds
+                    setInterval(loadUsers, 30000);
+                }
+            } else {
+                window.location.href = 'admin-login.html';
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Panel - Delete Users</title>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        .user-item { 
+            padding: 10px; 
+            margin: 5px; 
+            border: 1px solid #ccc; 
+            display: flex; 
+            justify-content: space-between;
+            align-items: center;
+        }
+        .delete-btn { 
+            background: red; 
+            color: white; 
+            border: none; 
+            padding: 5px 10px; 
+            cursor: pointer;
+        }
+        .admin-badge { background: gold; padding: 2px 8px; border-radius: 12px; }
+    </style>
+</head>
+<body>
+    <h1>Admin Panel - User Management</h1>
+    <div id="users-list"></div>
+    <button onclick="logout()">Logout</button>
+
+    <script>
+        const auth = firebase.auth();
+        const db = firebase.database();
+        
+        // Check if user is admin
+        auth.onAuthStateChanged(async (user) => {
+            if (!user) {
+                window.location = "login.html";
+                return;
+            }
+            
+            const idTokenResult = await user.getIdTokenResult();
+            const isAdmin = idTokenResult.claims.admin === true;
+            
+            if (!isAdmin) {
+                document.body.innerHTML = '<h1>Access Denied. Admin only.</h1>';
+                return;
+            }
+            
+            loadUsers();
+        });
+        
+        async function loadUsers() {
+            const snapshot = await db.ref('users').once('value');
+            const users = snapshot.val() || {};
+            const container = document.getElementById('users-list');
+            container.innerHTML = '';
+            
+            for (const [uid, profile] of Object.entries(users)) {
+                const div = document.createElement('div');
+                div.className = 'user-item';
+                div.innerHTML = `
+                    <div>
+                        <strong>${profile.username || profile.email}</strong>
+                        <div>UID: ${uid}</div>
+                        <div>Status: ${profile.status || 'No status'}</div>
+                    </div>
+                    <button class="delete-btn" onclick="deleteUser('${uid}')">Delete User</button>
+                `;
+                container.appendChild(div);
+            }
+        }
+        
+        async function deleteUser(uid) {
+            if (!confirm('Are you sure? This cannot be undone!')) return;
+            
+            try {
+                // Call your Cloud Function or backend API
+                const response = await fetch('/api/admin/delete-user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: uid, adminToken: await auth.currentUser.getIdToken() })
+                });
+                
+                if (response.ok) {
+                    alert('User deleted successfully!');
+                    loadUsers();
+                } else {
+                    alert('Failed to delete user');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error: ' + error.message);
+            }
+        }
+        
+        function logout() {
+            auth.signOut().then(() => window.location = "login.html");
+        }
+    </script>
+</body>
+</html>
