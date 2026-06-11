@@ -1,101 +1,61 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ChatMate — Sign In</title>
-  <link rel="icon" type="image/png" href="mate.png">
-  <link rel="apple-touch-icon" href="mate.png">
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChatMate</title>
+    <link rel="icon" type="image/png" href="mate.png">
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+        }
+        .loader {
+            text-align: center;
+            color: white;
+        }
+        .loader img {
+            width: 80px;
+            margin-bottom: 20px;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-top: 3px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
 </head>
-<body class="auth-page">
-
-<div class="auth-shell">
-
-  <!-- ── Left: Visual / Hero ─────────────────────────── -->
-  <div class="auth-visual">
-    <div class="auth-logo">
-      <img src="mate.png" alt="ChatMate">
+<body>
+    <div class="loader">
+        <img src="mate.png" alt="ChatMate">
+        <h2>ChatMate</h2>
+        <div class="spinner"></div>
+        <p>Loading...</p>
     </div>
-
-    <h1 class="auth-headline">Chat without<br>limits.</h1>
-
-    <p class="auth-tagline">
-      Real-time messaging, crystal-clear video calls, seamless media sharing —
-      all wrapped in a strikingly beautiful interface.
-    </p>
-
-    <ul class="auth-feature-list">
-      <li>End-to-end encrypted messages</li>
-      <li>HD video &amp; audio calls</li>
-      <li>Photos, videos, and documents</li>
-      <li>Live presence &amp; typing indicators</li>
-    </ul>
-  </div>
-
-  <!-- ── Right: Login form ───────────────────────────── -->
-  <div class="login-box">
-
-    <h2>Welcome back</h2>
-    <p class="auth-subtitle">Sign in to continue your conversations.</p>
-
-    <input
-      class="field"
-      type="email"
-      id="email"
-      placeholder="Email address"
-      autocomplete="email"
-    >
-
-    <input
-      class="field"
-      type="password"
-      id="password"
-      placeholder="Password"
-      autocomplete="current-password"
-    >
-
-    <button onclick="login()">Sign in</button>
-
-    <p class="p">No account? <a href="signup.html">Create one free</a></p>
-
-    <div class="auth-divider">or sign in with phone</div>
-
-    <input
-      class="field"
-      type="tel"
-      id="phone"
-      placeholder="Phone number, e.g. +15551234567"
-      autocomplete="tel"
-    >
-
-    <div id="recaptcha-container"></div>
-    <div id="phone-status" class="phone-status"></div>
-
-    <button onclick="sendPhoneCode()">Send SMS Code</button>
-
-    <div id="phone-code-area" hidden>
-      <input
-        class="field"
-        type="text"
-        id="verificationCode"
-        placeholder="6-digit verification code"
-        autocomplete="one-time-code"
-        inputmode="numeric"
-        maxlength="6"
-      >
-      <button onclick="verifyPhoneCode()">Verify &amp; Sign In</button>
-    </div>
-
-  </div>
-</div>
-
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js"></script>
-<script src="auth.js"></script>
-
+    <script>
+        window.auth.onAuthStateChanged((user) => {
+            if (user) {
+                window.location.href = 'chat.html';
+            } else {
+                window.location.href = 'login.html';
+            }
+        });
+    </script>
 </body>
 </html>
