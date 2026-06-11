@@ -1,0 +1,4 @@
+admin/firebase-adminsdk-key.json
+*.json
+.envadmin/firebase-adminsdk-key.json
+*.key.json
