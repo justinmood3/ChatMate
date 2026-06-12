@@ -65,16 +65,10 @@
             color: white;
             font-weight: bold;
             cursor: pointer;
-            transition: transform 0.2s;
         }
 
         button:hover {
             transform: translateY(-2px);
-        }
-
-        button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
         }
 
         hr {
@@ -87,36 +81,21 @@
             padding: 12px;
             border-radius: 8px;
             margin-bottom: 15px;
-            font-size: 14px;
             display: none;
         }
 
-        .message.error {
-            background: #ffebee;
-            color: #f44336;
-        }
+        .message.error { background: #ffebee; color: #f44336; }
+        .message.success { background: #e8f5e9; color: #4CAF50; }
+        .message.info { background: #e3f2fd; color: #2196F3; }
 
-        .message.success {
-            background: #e8f5e9;
-            color: #4CAF50;
-        }
-
-        .message.info {
-            background: #e3f2fd;
-            color: #2196F3;
-        }
-
-        a {
-            color: #667eea;
-            text-decoration: none;
-        }
+        a { color: #667eea; text-decoration: none; cursor: pointer; }
 
         #verifySection {
             display: none;
             text-align: center;
         }
 
-        .verify-message {
+        .verify-card {
             background: #e3f2fd;
             padding: 20px;
             border-radius: 10px;
@@ -134,38 +113,34 @@
         <div class="login-box">
             <div id="message" class="message"></div>
             
-            <!-- Signup Section -->
             <div id="signupSection">
-                <input type="text" id="username" placeholder="Username" autocomplete="username">
-                <input type="email" id="email" placeholder="Email" autocomplete="email">
-                <input type="password" id="password" placeholder="Password (min 6 characters)" autocomplete="new-password">
-                <button onclick="signup()">Sign Up</button>
+                <input type="text" id="username" placeholder="Username">
+                <input type="email" id="email" placeholder="Email">
+                <input type="password" id="password" placeholder="Password (min 6 characters)">
+                <button onclick="signup(event)">Sign Up</button>
             </div>
             
-            <!-- Verification Section (shown after signup) -->
             <div id="verifySection">
-                <div class="verify-message">
-                    <p>Verification email sent to: <strong id="verificationEmail"></strong></p>
-                    <p>Please check your inbox and click the verification link.</p>
-                    <p>After verifying, click the button below to continue.</p>
+                <div class="verify-card">
+                    <h3>📧 Verify Your Email</h3>
+                    <p>We sent a verification email to:</p>
+                    <p><strong id="verificationEmail" style="color: #667eea;"></strong></p>
+                    <p>Click the link in the email to verify your account.</p>
+                    <p style="font-size: 12px;">Check your spam folder if you don't see it.</p>
                 </div>
-                <button onclick="checkVerificationStatus()">I've Verified My Email</button>
-                <button onclick="resendVerificationEmail()">Resend Email</button>
-                <button onclick="location.href='index.html'" style="background: #999; margin-top: 10px;">Back to Login</button>
+                <button onclick="checkVerificationStatus(event)">✅ I've Verified</button>
+                <button onclick="resendVerificationEmail(event)">📧 Resend Email</button>
+                <button onclick="location.href='index.html'" style="background: #999; margin-top: 10px;">← Back</button>
             </div>
 
             <hr>
-
             <p style="text-align: center;">Already have an account? <a href="index.html">Login</a></p>
-
             <hr>
-
             <p style="text-align: center; margin-bottom: 15px;">Or sign up with</p>
-            <button onclick="googleSignUp()">Continue with Google</button>
+            <button onclick="googleSignUp(event)">Continue with Google</button>
         </div>
     </div>
 
-    <!-- Firebase ONLY - No EmailJS -->
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
