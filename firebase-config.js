@@ -10,5 +10,9 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 
+<<<<<<< HEAD
+=======
+// GLOBAL SINGLETONS (IMPORTANT)
+>>>>>>> origin/master
 window.auth = firebase.auth();
 window.db = firebase.database();
