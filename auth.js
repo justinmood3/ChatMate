@@ -1,4 +1,4 @@
-// auth.js - Firebase Email Verification (No EmailJS)
+// auth.js - Complete Working Authentication
 'use strict';
 
 const auth = window.auth;
@@ -23,64 +23,41 @@ function showMessage(message, type = 'error') {
     }
 }
 
-// ==================== SIGNUP WITH FIREBASE EMAIL VERIFICATION ====================
+// ==================== SIGNUP ====================
 window.signup = async function () {
-    console.log("Signup function called");
-    
     const username = getValue("username");
     const email = getValue("email");
     const password = getValue("password");
     const btn = event.target;
     
-    // Validation
-    if (!username) {
-        showMessage("Please enter a username", "error");
-        return;
-    }
-    
-    if (username.length < 3) {
+    if (!username || username.length < 3) {
         showMessage("Username must be at least 3 characters", "error");
         return;
     }
     
-    if (!email) {
-        showMessage("Please enter an email address", "error");
+    if (!email || !email.includes('@')) {
+        showMessage("Valid email required", "error");
         return;
     }
     
-    if (!email.includes('@')) {
-        showMessage("Please enter a valid email address", "error");
-        return;
-    }
-    
-    if (!password) {
-        showMessage("Please enter a password", "error");
-        return;
-    }
-    
-    if (password.length < 6) {
+    if (!password || password.length < 6) {
         showMessage("Password must be at least 6 characters", "error");
         return;
     }
-
+    
     btn.disabled = true;
     btn.textContent = "Creating account...";
-
+    
     try {
-        // Create user in Firebase Auth
         const userCredential = await auth.createUserWithEmailAndPassword(email, password);
         const user = userCredential.user;
         
-        console.log("User created:", user.uid);
-        
-        // Update profile with username
         await user.updateProfile({ displayName: username });
         
-        // Send verification email (Firebase built-in)
+        // Send verification email
         await user.sendEmailVerification();
-        console.log("Verification email sent to:", email);
         
-        // Create user profile in database (email not verified yet)
+        // Create user profile
         await db.ref("users/" + user.uid).set({
             uid: user.uid,
             email: email,
@@ -97,43 +74,42 @@ window.signup = async function () {
             lastSeen: Date.now()
         });
         
-        showMessage(`Verification email sent to ${email}! Please check your inbox.`, "success");
+        showMessage(`✅ Verification email sent to ${email}!`, "success");
         
-        // Show verification UI, hide signup UI
-        const signupSection = document.getElementById("signupSection");
-        const verifySection = document.getElementById("verifySection");
-        const verificationEmail = document.getElementById("verificationEmail");
+        // Show verification UI
+        document.getElementById("signupSection").style.display = "none";
+        document.getElementById("verifySection").style.display = "block";
+        document.getElementById("verificationEmail").innerHTML = email;
         
-        if (signupSection) signupSection.style.display = "none";
-        if (verifySection) verifySection.style.display = "block";
-        if (verificationEmail) verificationEmail.textContent = email;
+        // Auto-check every 3 seconds
+        const checkInterval = setInterval(async () => {
+            await user.reload();
+            if (user.emailVerified) {
+                clearInterval(checkInterval);
+                await db.ref("users/" + user.uid).update({
+                    online: true,
+                    emailVerified: true,
+                    lastSeen: Date.now()
+                });
+                showMessage("Email verified! Redirecting...", "success");
+                setTimeout(() => window.location.href = "chat.html", 1500);
+            }
+        }, 3000);
         
     } catch (err) {
-        console.error("Signup error:", err);
-        
-        let errorMessage = "";
-        if (err.code === 'auth/email-already-in-use') {
-            errorMessage = "Email already registered. Please login.";
-        } else if (err.code === 'auth/weak-password') {
-            errorMessage = "Password is too weak. Use at least 6 characters.";
-        } else if (err.code === 'auth/invalid-email') {
-            errorMessage = "Invalid email address.";
-        } else {
-            errorMessage = err.message || "Signup failed. Please try again.";
-        }
-        
-        showMessage(errorMessage, "error");
+        let msg = err.code === 'auth/email-already-in-use' ? "Email already registered" : err.message;
+        showMessage(msg, "error");
     } finally {
         btn.disabled = false;
         btn.textContent = "Sign Up";
     }
 };
 
-// ==================== CHECK VERIFICATION STATUS ====================
+// ==================== CHECK VERIFICATION ====================
 window.checkVerificationStatus = async function () {
     const user = auth.currentUser;
     if (!user) {
-        showMessage("No user found. Please sign up again.", "error");
+        showMessage("No user found", "error");
         return;
     }
     
@@ -142,26 +118,20 @@ window.checkVerificationStatus = async function () {
     btn.textContent = "Checking...";
     
     try {
-        // Reload user to get latest emailVerified status
         await user.reload();
         
         if (user.emailVerified) {
-            // Update database
             await db.ref("users/" + user.uid).update({
                 online: true,
                 emailVerified: true,
                 lastSeen: Date.now()
             });
-            
-            showMessage("Email verified! Redirecting to chat...", "success");
-            setTimeout(() => {
-                window.location.href = "chat.html";
-            }, 1500);
+            showMessage("Email verified! Redirecting...", "success");
+            setTimeout(() => window.location.href = "chat.html", 1500);
         } else {
-            showMessage("Email not verified yet. Please check your inbox and click the verification link.", "info");
+            showMessage("Email not verified yet. Check your inbox (spam folder too).", "info");
         }
     } catch (err) {
-        console.error("Check verification error:", err);
         showMessage(err.message, "error");
     } finally {
         btn.disabled = false;
@@ -169,11 +139,11 @@ window.checkVerificationStatus = async function () {
     }
 };
 
-// ==================== RESEND VERIFICATION EMAIL ====================
+// ==================== RESEND VERIFICATION ====================
 window.resendVerificationEmail = async function () {
     const user = auth.currentUser;
     if (!user) {
-        showMessage("No user found. Please sign up again.", "error");
+        showMessage("No user found", "error");
         return;
     }
     
@@ -183,9 +153,8 @@ window.resendVerificationEmail = async function () {
     
     try {
         await user.sendEmailVerification();
-        showMessage(`Verification email sent to ${user.email}!`, "success");
+        showMessage(`✅ Verification email sent to ${user.email}!`, "success");
     } catch (err) {
-        console.error("Resend error:", err);
         showMessage(err.message, "error");
     } finally {
         btn.disabled = false;
@@ -211,11 +180,9 @@ window.login = async function () {
         const cred = await auth.signInWithEmailAndPassword(email, password);
         const user = cred.user;
         
-        // Check if email is verified
         if (!user.emailVerified) {
             showMessage("Please verify your email first. Check your inbox.", "info");
             btn.disabled = false;
-            btn.textContent = "Login";
             return;
         }
         
@@ -238,22 +205,15 @@ window.login = async function () {
                 lastSeen: Date.now()
             });
         } else {
-            await db.ref("users/" + user.uid).update({
-                online: true,
-                lastSeen: Date.now()
-            });
+            await db.ref("users/" + user.uid).update({ online: true, lastSeen: Date.now() });
         }
         
         showMessage("Login successful!", "success");
-        setTimeout(() => {
-            window.location.href = "chat.html";
-        }, 1500);
+        setTimeout(() => window.location.href = "chat.html", 1500);
         
     } catch (err) {
-        console.error(err);
-        let errorMessage = err.code === 'auth/user-not-found' ? "No account found. Please sign up." :
-                          err.code === 'auth/wrong-password' ? "Incorrect password." : err.message;
-        showMessage(errorMessage, "error");
+        let msg = err.code === 'auth/user-not-found' ? "No account found" : err.message;
+        showMessage(msg, "error");
     } finally {
         btn.disabled = false;
         btn.textContent = "Login";
@@ -289,16 +249,11 @@ window.googleLogin = async function () {
                 lastSeen: Date.now()
             });
         } else {
-            await db.ref("users/" + user.uid).update({
-                online: true,
-                lastSeen: Date.now()
-            });
+            await db.ref("users/" + user.uid).update({ online: true, lastSeen: Date.now() });
         }
         
         showMessage("Google login successful!", "success");
-        setTimeout(() => {
-            window.location.href = "chat.html";
-        }, 1500);
+        setTimeout(() => window.location.href = "chat.html", 1500);
         
     } catch (err) {
         showMessage(err.message, "error");
@@ -330,10 +285,7 @@ window.resetPassword = async function () {
 window.logout = async function () {
     const user = auth.currentUser;
     if (user) {
-        await db.ref("users/" + user.uid).update({
-            online: false,
-            lastSeen: Date.now()
-        });
+        await db.ref("users/" + user.uid).update({ online: false, lastSeen: Date.now() });
     }
     await auth.signOut();
     window.location.href = "index.html";
@@ -341,24 +293,14 @@ window.logout = async function () {
 
 // ==================== AUTH STATE ====================
 auth.onAuthStateChanged(async user => {
-    console.log("Auth state changed:", user ? user.uid : "No user");
     if (!user) return;
-    
     try {
         const userSnap = await db.ref("users/" + user.uid).once("value");
-        if (userSnap.exists()) {
-            if (user.emailVerified) {
-                await db.ref("users/" + user.uid).update({
-                    online: true,
-                    lastSeen: Date.now()
-                });
-            }
-            db.ref("users/" + user.uid).onDisconnect().update({
-                online: false,
-                lastSeen: Date.now()
-            });
+        if (userSnap.exists() && user.emailVerified) {
+            await db.ref("users/" + user.uid).update({ online: true, lastSeen: Date.now() });
+            db.ref("users/" + user.uid).onDisconnect().update({ online: false, lastSeen: Date.now() });
         }
     } catch (err) {
-        console.error("Auth state error:", err);
+        console.error(err);
     }
 });
