@@ -1,3 +1,4 @@
+
 // encryption.js - Multi-Device End-to-End Encryption
 
 // ==================== KEY MANAGEMENT ====================
@@ -330,7 +331,57 @@ function getDeviceName() {
     return `Desktop (${platform})`;
 }
 
+// encryption.js - Complete working version
+
+let currentMasterKey = null;
+
 // Get current master key
 function getCurrentMasterKey() {
     return currentMasterKey;
 }
+
+// Set master key (for initialization)
+function setCurrentMasterKey(key) {
+    currentMasterKey = key;
+}
+
+// Generate a new master key
+async function generateMasterKey() {
+    const key = await crypto.subtle.generateKey(
+        {
+            name: "AES-GCM",
+            length: 256,
+        },
+        true,
+        ["encrypt", "decrypt"]
+    );
+    currentMasterKey = key;
+    return key;
+}
+
+// Export master key to store it
+async function exportMasterKey(key) {
+    const exported = await crypto.subtle.exportKey("raw", key);
+    return btoa(String.fromCharCode(...new Uint8Array(exported)));
+}
+
+// Import master key from stored string
+async function importMasterKey(keyStr) {
+    const keyData = Uint8Array.from(atob(keyStr), c => c.charCodeAt(0));
+    const key = await crypto.subtle.importKey(
+        "raw",
+        keyData,
+        "AES-GCM",
+        true,
+        ["encrypt", "decrypt"]
+    );
+    currentMasterKey = key;
+    return key;
+}
+
+// Make functions available globally
+window.getCurrentMasterKey = getCurrentMasterKey;
+window.setCurrentMasterKey = setCurrentMasterKey;
+window.generateMasterKey = generateMasterKey;
+window.exportMasterKey = exportMasterKey;
+window.importMasterKey = importMasterKey;
