@@ -126,6 +126,7 @@
         a {
             color: #667eea;
             text-decoration: none;
+            cursor: pointer;
         }
 
         .forgot-link {
@@ -146,7 +147,7 @@
             
             <input type="email" id="email" placeholder="Email" autocomplete="email">
             <input type="password" id="password" placeholder="Password" autocomplete="current-password">
-            <button onclick="login()">Login</button>
+            <button onclick="login(event)">Login</button>
             
             <div class="forgot-link">
                 <a onclick="resetPassword()">Forgot password?</a>
@@ -154,7 +155,7 @@
 
             <div class="divider"><span>or</span></div>
 
-            <button onclick="googleLogin()">Continue with Google</button>
+            <button onclick="googleLogin(event)">Continue with Google</button>
 
             <div style="text-align: center; margin-top: 20px;">
                 Don't have an account? <a href="signup.html">Sign Up</a>
