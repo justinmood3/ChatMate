@@ -1,3 +1,154 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChatMate - Sign Up</title>
+    <link rel="icon" type="image/png" href="mate.png">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .auth-shell {
+            max-width: 500px;
+            width: 90%;
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .auth-visual {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px;
+            color: white;
+            text-align: center;
+        }
+
+        .auth-visual h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .login-box {
+            padding: 40px;
+        }
+
+        input, button {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 14px;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
+
+        hr {
+            margin: 20px 0;
+            border: none;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .message {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: none;
+        }
+
+        .message.error { background: #ffebee; color: #f44336; }
+        .message.success { background: #e8f5e9; color: #4CAF50; }
+        .message.info { background: #e3f2fd; color: #2196F3; }
+
+        a { color: #667eea; text-decoration: none; }
+
+        #verifySection {
+            display: none;
+            text-align: center;
+        }
+
+        .verify-card {
+            background: #e3f2fd;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-shell">
+        <div class="auth-visual">
+            <h1>Create Account</h1>
+            <p>Join ChatMate today</p>
+        </div>
+
+        <div class="login-box">
+            <div id="message" class="message"></div>
+            
+            <div id="signupSection">
+                <input type="text" id="username" placeholder="Username">
+                <input type="email" id="email" placeholder="Email">
+                <input type="password" id="password" placeholder="Password (min 6 characters)">
+                <button onclick="signup()">Sign Up</button>
+            </div>
+            
+            <div id="verifySection">
+                <div class="verify-card">
+                    <h3>📧 Verify Your Email</h3>
+                    <p>We sent a verification email to:</p>
+                    <p><strong id="verificationEmail" style="color: #667eea;"></strong></p>
+                    <p>Click the link in the email to verify your account.</p>
+                    <p style="font-size: 12px;">Check your spam folder if you don't see it.</p>
+                </div>
+                <button onclick="checkVerificationStatus()">✅ I've Verified</button>
+                <button onclick="resendVerificationEmail()">📧 Resend Email</button>
+                <button onclick="location.href='index.html'" style="background: #999; margin-top: 10px;">← Back</button>
+            </div>
+
+            <hr>
+            <p style="text-align: center;">Already have an account? <a href="index.html">Login</a></p>
+            <hr>
+            <p style="text-align: center; margin-bottom: 15px;">Or sign up with</p>
+            <button onclick="googleSignUp()">Continue with Google</button>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="auth.js"></script>
+</body>
+=======
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -147,4 +298,5 @@
     <script src="firebase-config.js"></script>
     <script src="auth.js"></script>
 </body>
+>>>>>>> origin/master
 </html>
