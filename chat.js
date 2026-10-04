@@ -362,6 +362,30 @@ window.typing = () => {
 };
 
 // ==================== MEDIA ====================
+async function uploadFile(file, chatId, senderId, receiverId) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('chatId', chatId);
+    formData.append('senderId', senderId);
+    formData.append('receiverId', receiverId || '');
+
+    try {
+        const response = await fetch('/api/upload', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            return result.data;
+        } else {
+            throw new Error(result.error);
+        }
+    } catch (error) {
+        console.error('Upload error:', error);
+        throw error;
+    }
+}
 window.toggleMediaPicker = () => { 
     const p = document.getElementById("mediaPicker"); 
     if (p) p.hidden = !p.hidden; 

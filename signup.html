@@ -65,10 +65,16 @@
             color: white;
             font-weight: bold;
             cursor: pointer;
+            transition: transform 0.2s;
         }
 
         button:hover {
             transform: translateY(-2px);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
 
         hr {
@@ -81,6 +87,7 @@
             padding: 12px;
             border-radius: 8px;
             margin-bottom: 15px;
+            font-size: 14px;
             display: none;
         }
 
@@ -89,18 +96,6 @@
         .message.info { background: #e3f2fd; color: #2196F3; }
 
         a { color: #667eea; text-decoration: none; cursor: pointer; }
-
-        #verifySection {
-            display: none;
-            text-align: center;
-        }
-
-        .verify-card {
-            background: #e3f2fd;
-            padding: 20px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-        }
     </style>
 </head>
 <body>
@@ -112,29 +107,16 @@
 
         <div class="login-box">
             <div id="message" class="message"></div>
-            
+
             <div id="signupSection">
-                <input type="text" id="username" placeholder="Username">
-                <input type="email" id="email" placeholder="Email">
-                <input type="password" id="password" placeholder="Password (min 6 characters)">
+                <input type="text" id="username" placeholder="Username (letters, numbers, _)" autocomplete="username">
+                <input type="email" id="email" placeholder="Email" autocomplete="email">
+                <input type="password" id="password" placeholder="Password (min 6 characters)" autocomplete="new-password">
                 <button onclick="signup(event)">Sign Up</button>
-            </div>
-            
-            <div id="verifySection">
-                <div class="verify-card">
-                    <h3>📧 Verify Your Email</h3>
-                    <p>We sent a verification email to:</p>
-                    <p><strong id="verificationEmail" style="color: #667eea;"></strong></p>
-                    <p>Click the link in the email to verify your account.</p>
-                    <p style="font-size: 12px;">Check your spam folder if you don't see it.</p>
-                </div>
-                <button onclick="checkVerificationStatus(event)">✅ I've Verified</button>
-                <button onclick="resendVerificationEmail(event)">📧 Resend Email</button>
-                <button onclick="location.href='index.html'" style="background: #999; margin-top: 10px;">← Back</button>
             </div>
 
             <hr>
-            <p style="text-align: center;">Already have an account? <a href="index.html">Login</a></p>
+            <p style="text-align: center;">Already have an account? <a href="login.html">Login</a></p>
             <hr>
             <p style="text-align: center; margin-bottom: 15px;">Or sign up with</p>
             <button onclick="googleSignUp(event)">Continue with Google</button>

@@ -9,6 +9,8 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background: #f0f2f5; }
         .container { max-width: 1200px; margin: 20px auto; padding: 20px; }
+        .container button{ background-color: rgb(87, 87, 255); padding: 16px; border-radius: 20px; right: 0; border: none; color: white; width: 100px; }
+        .container button a{ text-decoration: none; color: white;}
         .header { background: white; padding: 20px; border-radius: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
         .header h1 { color: #333; font-size: 24px; }
         .nav-buttons { display: flex; gap: 10px; }
@@ -50,13 +52,14 @@
 <body>
     <div class="container">
         <div class="header">
+            <button><a href="chat.html">← Back</a></button>
             <h1>🌍 Discover Friends</h1>
             <div class="nav-buttons">
                 <a href="chat.html" class="nav-btn">💬 Messages</a>
                 <a href="friends.html" class="nav-btn outline">👥 My Friends</a>
             </div>
         </div>
-
+           
         <div class="stats">
             <div class="stat-card"><div class="number" id="totalUsers">0</div><div>Total Users</div></div>
             <div class="stat-card"><div class="number" id="onlineUsers">0</div><div>Online Now</div></div>

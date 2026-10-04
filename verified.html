@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChatMate - Verifying</title>
+    <link rel="icon" type="image/png" href="mate.png">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh; display: flex; align-items: center; justify-content: center;
+        }
+        .card {
+            max-width: 450px; width: 90%; background: white; border-radius: 20px;
+            padding: 40px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .icon { font-size: 48px; margin-bottom: 12px; }
+        h1 { font-size: 24px; margin-bottom: 10px; }
+        p { color: #555; margin-bottom: 20px; }
+        a.btn {
+            display: none; padding: 12px 24px; border-radius: 10px; color: white;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            text-decoration: none; font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="icon" id="icon">⏳</div>
+        <h1 id="title">Verifying your email...</h1>
+        <p id="text">One moment.</p>
+        <a class="btn" id="btn" href="login.html">Continue</a>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script>
+        // auth.js is intentionally not loaded here, so no redirect rules interfere.
+        const $ = (id) => document.getElementById(id);
+
+        function show(icon, title, text, href, label) {
+            $('icon').textContent = icon;
+            $('title').textContent = title;
+            $('text').textContent = text;
+            $('btn').href = href;
+            $('btn').textContent = label;
+            $('btn').style.display = 'inline-block';
+        }
+
+        async function finish(user) {
+            // Tell any open ChatMate tab right now (the "storage" event fires in other tabs)
+            try { localStorage.setItem('emailVerifiedAt', String(Date.now())); } catch (e) {}
+
+            if (user) {
+                try {
+                    await user.reload();
+                    await user.getIdToken(true); // so database rules see email_verified
+                } catch (e) { console.warn(e); }
+                show('✅', 'Email verified!', 'Taking you to ChatMate...', 'chat.html', 'Open ChatMate');
+                setTimeout(() => { window.location.href = 'chat.html'; }, 800);
+            } else {
+                // Link opened on a device/browser where nobody is signed in
+                show('✅', 'Email verified!', 'Your account is confirmed. Log in to continue.', 'login.html', 'Log in');
+            }
+        }
+
+        async function run(user) {
+            const params = new URLSearchParams(window.location.search);
+            const mode = params.get('mode');
+            const code = params.get('oobCode');
+
+            if (mode !== 'verifyEmail' || !code) {
+                // Opened directly, not from an email
+                if (user && user.emailVerified) return finish(user);
+                return show('ℹ️', 'Nothing to verify', 'Open the link from your verification email.', 'login.html', 'Go to login');
+            }
+
+            try {
+                await window.auth.applyActionCode(code); // marks the email as verified
+                await finish(user);
+            } catch (e) {
+                console.error('Verify failed:', e.code);
+                await user?.reload().catch(() => {});
+                if (user && user.emailVerified) return finish(user); // link already used, but account is verified
+                show('⚠️', 'Link expired or already used',
+                     'Log in and press "Resend email" to get a new link.', 'login.html', 'Go to login');
+            }
+        }
+
+        const unsubscribe = window.auth.onAuthStateChanged((user) => {
+            unsubscribe(); // run once, after Firebase restores the session
+            run(user);
+        });
+    </script>
+</body>
+</html>

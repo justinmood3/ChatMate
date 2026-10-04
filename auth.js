@@ -1,38 +1,31 @@
 // ==================== AUTHENTICATION SYSTEM ====================
-// Wait for DOM to be fully loaded
+const LOGIN_PAGE = 'login.html';
+const CHAT_PAGE = 'chat.html';
+
 document.addEventListener('DOMContentLoaded', () => {
     initAuth();
 });
 
 async function initAuth() {
-    // Wait for Firebase to be ready
     if (!window.firebase || !window.auth) {
         console.log('Waiting for Firebase...');
         setTimeout(initAuth, 100);
         return;
     }
-    
     console.log('Firebase auth initialized successfully');
-    
-    // Check if user is already logged in
-    const user = window.auth.currentUser;
-    if (user && window.location.pathname.includes('index.html') && user.emailVerified) {
-        window.location.href = 'chat.html';
-    }
 }
 
-// Helper functions
+// ==================== HELPERS ====================
 function showMessage(msg, type = 'error') {
     const msgDiv = document.getElementById('message');
     if (msgDiv) {
         msgDiv.textContent = msg;
         msgDiv.className = `message ${type}`;
         msgDiv.style.display = 'block';
-        setTimeout(() => { 
-            if (msgDiv) msgDiv.style.display = 'none'; 
+        setTimeout(() => {
+            if (msgDiv) msgDiv.style.display = 'none';
         }, 5000);
     } else {
-        // Fallback if message div doesn't exist
         alert(msg);
     }
 }
@@ -54,88 +47,116 @@ function setLoading(btn, isLoading, originalText = '') {
     }
 }
 
+// Turn any name into a valid username key: lowercase letters, numbers, underscores
+function toUsernameKey(name) {
+    let key = String(name || '').toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/_+/g, '_');
+    key = key.replace(/^_+|_+$/g, '');
+    if (key.length < 3) key = (key + '_user').slice(0, 30);
+    return key.slice(0, 30);
+}
+
+// Sends the verification email. If a "continue" link is rejected, falls back to a plain send.
+async function sendVerification(user) {
+    const base = window.location.href.replace(/[^/]*$/, '');
+    try {
+        await user.sendEmailVerification({ url: base + 'verified.html' });
+    } catch (e) {
+        if (e.code === 'auth/unauthorized-continue-uri' || e.code === 'auth/invalid-continue-uri') {
+            await user.sendEmailVerification();
+        } else {
+            throw e;
+        }
+    }
+}
+
 // ==================== SIGNUP FUNCTION ====================
-window.signup = async function(event) {
+window.signup = async function (event) {
     const btn = event?.target;
     setLoading(btn, true, 'Sign Up');
-    
+
+    window.__signingUp = true; // stops the auth listener redirecting before the profile is saved
+    let createdUser = null;
+    let succeeded = false;
+
     try {
         const username = getValue('username');
         const email = getValue('email');
         const password = getValue('password');
-        
-        // Validation
+
         if (!username || !email || !password) {
             showMessage('Please fill all fields', 'error');
             return;
         }
-        
-        if (username.length < 3) {
-            showMessage('Username must be at least 3 characters', 'error');
+
+        const usernameKey = username.toLowerCase();
+        if (!/^[a-z0-9_]{3,30}$/.test(usernameKey)) {
+            showMessage('Username: 3-30 characters, letters, numbers and underscores only.', 'error');
             return;
         }
-        
+
         if (password.length < 6) {
             showMessage('Password must be at least 6 characters', 'error');
             return;
         }
-        
+
         if (!email.includes('@')) {
             showMessage('Please enter a valid email address', 'error');
             return;
         }
-        
-        // Check if username exists in database
-        if (window.db) {
-            const usersRef = window.db.ref('users');
-            const snapshot = await usersRef.orderByChild('username').equalTo(username).once('value');
-            if (snapshot.exists()) {
-                showMessage('Username already taken. Please choose another.', 'error');
-                return;
-            }
+
+        if (!window.auth || !window.db) {
+            showMessage('Firebase not initialized. Please refresh the page.', 'error');
+            return;
         }
-        
-        // Create user with email and password
+
+        // Quick pre-check (works while signed out)
+        const taken = await window.db.ref(`usernames/${usernameKey}`).once('value');
+        if (taken.exists()) {
+            showMessage('Username already taken. Please choose another.', 'error');
+            return;
+        }
+
+        // Create the account
         const userCredential = await window.auth.createUserWithEmailAndPassword(email, password);
         const user = userCredential.user;
-        
-        // Send verification email
-        await user.sendEmailVerification();
-        
-        // Save user data to database
-        if (window.db) {
-            await window.db.ref(`users/${user.uid}`).set({
-                username: username,
-                email: email,
-                displayName: username,
-                status: 'Available',
-                photo: '',
-                online: false,
-                lastSeen: Date.now(),
-                createdAt: Date.now(),
-                friends: {},
-                friendRequests: {},
-                sentRequests: {}
-            });
+        createdUser = user;
+
+        // Claim the username (fails if someone grabbed it in the meantime)
+        try {
+            await window.db.ref(`usernames/${usernameKey}`).set(user.uid);
+        } catch (e) {
+            console.error('Username claim failed:', e);
+            await user.delete();
+            createdUser = null;
+            showMessage('Username already taken. Please choose another.', 'error');
+            return;
         }
-        
-        // Show verification section
-        const signupSection = document.getElementById('signupSection');
-        const verifySection = document.getElementById('verifySection');
-        const verificationEmail = document.getElementById('verificationEmail');
-        
-        if (signupSection) signupSection.style.display = 'none';
-        if (verifySection) verifySection.style.display = 'block';
-        if (verificationEmail) verificationEmail.textContent = email;
-        
-        showMessage('Verification email sent! Please check your inbox.', 'success');
-        
-        // Start checking for email verification
-        startEmailVerificationChecker(user);
-        
+
+        // Public profile (no email here)
+        await window.db.ref(`users/${user.uid}`).set({
+            username: username,
+            displayName: username,
+            status: 'Available',
+            photo: '',
+            online: true,
+            lastSeen: Date.now(),
+            createdAt: Date.now()
+        });
+
+        // Private data
+        await window.db.ref(`privateUsers/${user.uid}`).set({ email: email });
+
+        // Send the verification email in the background; don't make signup wait for it
+        sendVerification(user).catch((e) => console.warn('Verification send failed:', e.code));
+        try { localStorage.setItem('verifyLastSent', String(Date.now())); } catch (e) { /* ignore */ }
+
+        createdUser = null; // success, nothing to clean up
+        succeeded = true;
+        window.location.href = CHAT_PAGE;
+
     } catch (err) {
         console.error('Signup error:', err);
-        
+
         let msg = 'Signup failed. Please try again.';
         if (err.code === 'auth/email-already-in-use') {
             msg = 'Email already registered. Please login instead.';
@@ -145,90 +166,109 @@ window.signup = async function(event) {
             msg = 'Password is too weak. Use at least 6 characters.';
         } else if (err.code === 'auth/operation-not-allowed') {
             msg = 'Email/password signup is disabled. Contact support.';
+        } else if (err.code === 'PERMISSION_DENIED' || /permission_denied/i.test(err.message || '')) {
+            msg = 'Database permission error. Check the console and your rules.';
         }
-        
+
         showMessage(msg, 'error');
-        
-        // Clean up - delete the user if creation succeeded but something else failed
-        if (err.code !== 'auth/email-already-in-use' && window.auth.currentUser) {
-            await window.auth.currentUser.delete();
+
+        // Clean up only the account created during this attempt
+        if (createdUser) {
+            try {
+                await window.db.ref(`usernames/${getValue('username').toLowerCase()}`).remove();
+            } catch (e) { /* ignore */ }
+            try {
+                await createdUser.delete();
+            } catch (e) {
+                console.error('Cleanup failed:', e);
+            }
         }
     } finally {
+        if (!succeeded) window.__signingUp = false;
         setLoading(btn, false, 'Sign Up');
     }
 };
 
-// ==================== EMAIL VERIFICATION CHECKER ====================
-let verificationInterval = null;
+// ==================== FAST VERIFICATION DETECTION ====================
+// Reacts instantly when verified.html confirms the account (storage event),
+// checks on tab focus, polls quickly while visible, never gives up
+function watchVerification(user, onVerified) {
+    let stopped = false;
+    let busy = false;
+    let timer = null;
+    const started = Date.now();
 
-function startEmailVerificationChecker(user) {
-    let attempts = 0;
-    const maxAttempts = 40; // 2 minutes max (3 seconds * 40)
-    
-    if (verificationInterval) clearInterval(verificationInterval);
-    
-    verificationInterval = setInterval(async () => {
-        attempts++;
-        
-        if (attempts > maxAttempts) {
-            clearInterval(verificationInterval);
-            showMessage('Verification taking too long. You can click "Resend Email" or "I\'ve Verified" manually.', 'info');
-            return;
-        }
-        
+    function cleanup() {
+        stopped = true;
+        clearTimeout(timer);
+        document.removeEventListener('visibilitychange', onVisible);
+        window.removeEventListener('focus', check);
+        window.removeEventListener('storage', onStorage);
+    }
+
+    async function check() {
+        if (stopped || busy) return;
+        busy = true;
+        clearTimeout(timer);
         try {
             await user.reload();
-            
             if (user.emailVerified) {
-                clearInterval(verificationInterval);
-                showMessage('Email verified successfully! Redirecting to chat...', 'success');
-                
-                // Update online status
-                if (window.db) {
-                    await window.db.ref(`users/${user.uid}`).update({
-                        online: true,
-                        lastSeen: Date.now()
-                    });
-                }
-                
-                setTimeout(() => {
-                    window.location.href = 'chat.html';
-                }, 2000);
+                cleanup();
+                await user.getIdToken(true); // refresh token so database rules see email_verified
+                onVerified();
+                return;
             }
-        } catch (err) {
-            console.error('Verification check error:', err);
+        } catch (e) {
+            console.warn('Verification check failed:', e.code || e.message);
+        } finally {
+            busy = false;
         }
-    }, 3000);
+        schedule();
+    }
+
+    function schedule() {
+        if (stopped || document.hidden) return; // no polling while the tab is hidden
+        const delay = Date.now() - started < 120000 ? 2000 : 5000;
+        timer = setTimeout(check, delay);
+    }
+
+    function onVisible() {
+        if (!document.hidden) check(); // user just came back from their email
+    }
+
+    function onStorage(e) {
+        if (e.key === 'emailVerifiedAt') check(); // verified.html just confirmed the account
+    }
+
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', check);
+    window.addEventListener('storage', onStorage);
+    check();
+
+    return cleanup;
 }
 
-// ==================== CHECK VERIFICATION STATUS ====================
-window.checkVerificationStatus = async function(event) {
+// Kept for an optional verify screen on signup.html
+function startEmailVerificationChecker(user) {
+    watchVerification(user, () => {
+        showMessage('Email verified! Redirecting...', 'success');
+        setTimeout(() => { window.location.href = CHAT_PAGE; }, 500);
+    });
+}
+
+window.checkVerificationStatus = async function (event) {
     const btn = event?.target;
     setLoading(btn, true, 'Check');
-    
     try {
         const user = window.auth.currentUser;
         if (!user) {
             showMessage('No user found. Please sign up again.', 'error');
             return;
         }
-        
         await user.reload();
-        
         if (user.emailVerified) {
-            if (verificationInterval) clearInterval(verificationInterval);
-            showMessage('Email verified! Redirecting to chat...', 'success');
-            
-            if (window.db) {
-                await window.db.ref(`users/${user.uid}`).update({
-                    online: true,
-                    lastSeen: Date.now()
-                });
-            }
-            
-            setTimeout(() => {
-                window.location.href = 'chat.html';
-            }, 1500);
+            await user.getIdToken(true);
+            window.location.href = CHAT_PAGE;
         } else {
             showMessage('Email not verified yet. Please check your inbox (and spam folder).', 'info');
         }
@@ -236,89 +276,127 @@ window.checkVerificationStatus = async function(event) {
         console.error('Check verification error:', err);
         showMessage('Error checking verification status.', 'error');
     } finally {
-        setLoading(btn, false, 'I\'ve Verified');
+        setLoading(btn, false, '✅ I\'ve Verified');
     }
 };
 
-// ==================== RESEND VERIFICATION EMAIL ====================
-window.resendVerificationEmail = async function(event) {
+window.resendVerificationEmail = async function (event) {
     const btn = event?.target;
     setLoading(btn, true, 'Resend');
-    
     try {
         const user = window.auth.currentUser;
         if (!user) {
             showMessage('No user found. Please sign up again.', 'error');
             return;
         }
-        
-        await user.sendEmailVerification();
+        await sendVerification(user);
         showMessage('Verification email resent! Please check your inbox and spam folder.', 'success');
     } catch (err) {
         console.error('Resend email error:', err);
-        
-        let msg = 'Failed to resend verification email.';
-        if (err.code === 'auth/too-many-requests') {
-            msg = 'Too many requests. Please try again later.';
-        }
-        showMessage(msg, 'error');
+        showMessage(err.code === 'auth/too-many-requests'
+            ? 'Too many requests. Please try again later.'
+            : 'Failed to resend verification email.', 'error');
     } finally {
-        setLoading(btn, false, 'Resend Email');
+        setLoading(btn, false, '📧 Resend Email');
     }
 };
 
+// ==================== VERIFY BANNER (shown on app pages) ====================
+function showVerifyBanner(user) {
+    if (document.getElementById('verifyBanner') || !document.body) return;
+
+    const bar = document.createElement('div');
+    bar.id = 'verifyBanner';
+    bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#fff3cd;color:#664d03;' +
+        'padding:8px 16px;font-size:14px;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap';
+    bar.innerHTML = '<span>Verify your email to unlock messaging and friend requests.</span>';
+
+    const btnStyle = 'width:auto;margin:0;padding:6px 12px;border:none;border-radius:6px;cursor:pointer;background:#667eea;color:#fff';
+
+    const resend = document.createElement('button');
+    resend.textContent = 'Resend email';
+    resend.style.cssText = btnStyle;
+    resend.onclick = async () => {
+        let last = 0;
+        try { last = Number(localStorage.getItem('verifyLastSent') || 0); } catch (e) { /* ignore */ }
+        const wait = 60000 - (Date.now() - last);
+        if (wait > 0) {
+            alert('Please wait ' + Math.ceil(wait / 1000) + ' seconds before resending.');
+            return;
+        }
+        try {
+            await sendVerification(user);
+            try { localStorage.setItem('verifyLastSent', String(Date.now())); } catch (e) { /* ignore */ }
+            alert('Verification email sent. Check your inbox and spam folder.');
+        } catch (e) {
+            alert(e.code === 'auth/too-many-requests'
+                ? 'Too many requests. Please try again later.'
+                : 'Could not send email: ' + e.code);
+        }
+    };
+
+    const done = document.createElement('button');
+    done.textContent = "I've verified";
+    done.style.cssText = btnStyle;
+    done.onclick = async () => {
+        await user.reload();
+        if (user.emailVerified) {
+            await user.getIdToken(true);
+            bar.remove();
+        } else {
+            alert('Not verified yet.');
+        }
+    };
+
+    bar.append(resend, done);
+    document.body.prepend(bar);
+
+    watchVerification(user, () => {
+        bar.remove();
+        showMessage('Email verified! Messaging is unlocked.', 'success');
+    });
+}
+
 // ==================== LOGIN FUNCTION ====================
-window.login = async function(event) {
+window.login = async function (event) {
     const btn = event?.target;
     setLoading(btn, true, 'Login');
-    
+
     try {
         const email = getValue('email');
         const password = getValue('password');
-        
+
         if (!email || !password) {
             showMessage('Please enter both email and password', 'error');
             return;
         }
-        
+
         if (!window.auth) {
             showMessage('Firebase not initialized. Please refresh the page.', 'error');
             return;
         }
-        
-        // Attempt login
+
         const userCredential = await window.auth.signInWithEmailAndPassword(email, password);
         const user = userCredential.user;
-        
-        // Check if email is verified
-        if (!user.emailVerified) {
-            await window.auth.signOut();
-            showMessage('Please verify your email first. Check your inbox and spam folder.', 'error');
-            return;
-        }
-        
-        // Update online status in database
+
         if (window.db) {
             await window.db.ref(`users/${user.uid}`).update({
                 online: true,
                 lastSeen: Date.now()
             });
         }
-        
+
         showMessage('Login successful! Redirecting...', 'success');
-        
-        setTimeout(() => {
-            window.location.href = 'chat.html';
-        }, 1500);
-        
+        window.location.href = CHAT_PAGE;
+
     } catch (err) {
         console.error('Login error:', err);
-        
+
         let msg = 'Login failed. Please try again.';
         if (err.code === 'auth/user-not-found') {
             msg = 'No account found with this email. Please sign up first.';
-        } else if (err.code === 'auth/wrong-password') {
-            msg = 'Incorrect password. Please try again.';
+        } else if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+            msg = 'Incorrect email or password. Please try again.';
         } else if (err.code === 'auth/invalid-email') {
             msg = 'Invalid email format.';
         } else if (err.code === 'auth/too-many-requests') {
@@ -326,7 +404,7 @@ window.login = async function(event) {
         } else if (err.code === 'auth/user-disabled') {
             msg = 'This account has been disabled. Contact support.';
         }
-        
+
         showMessage(msg, 'error');
     } finally {
         setLoading(btn, false, 'Login');
@@ -334,64 +412,66 @@ window.login = async function(event) {
 };
 
 // ==================== GOOGLE LOGIN ====================
-window.googleLogin = async function(event) {
+window.googleLogin = async function (event) {
     const btn = event?.target;
-    setLoading(btn, true, 'Google');
-    
+    setLoading(btn, true, 'Continue with Google');
+    window.__signingUp = true;
+    let succeeded = false;
+
     try {
         if (!window.auth) {
             throw new Error('Firebase not initialized');
         }
-        
+
         const provider = new firebase.auth.GoogleAuthProvider();
         provider.addScope('email');
         provider.addScope('profile');
-        
+
         const result = await window.auth.signInWithPopup(provider);
         const user = result.user;
-        
-        // Check if user exists in database
+
         if (window.db) {
-            const userRef = await window.db.ref(`users/${user.uid}`).once('value');
-            
-            if (!userRef.exists()) {
-                // Create new user profile
+            const snap = await window.db.ref(`users/${user.uid}`).once('value');
+            const fallbackName = (user.displayName || user.email.split('@')[0]).slice(0, 50);
+
+            if (!snap.exists()) {
+                let key = toUsernameKey(user.displayName || user.email.split('@')[0]);
+                const existing = await window.db.ref(`usernames/${key}`).once('value');
+                if (existing.exists()) {
+                    key = (key.slice(0, 21) + '_' + user.uid.slice(0, 8).toLowerCase())
+                        .replace(/[^a-z0-9_]/g, '_');
+                }
+                await window.db.ref(`usernames/${key}`).set(user.uid);
+
                 await window.db.ref(`users/${user.uid}`).set({
-                    username: user.displayName || user.email.split('@')[0],
-                    email: user.email,
-                    displayName: user.displayName || user.email.split('@')[0],
+                    username: key,
+                    displayName: fallbackName,
                     status: 'Available',
                     photo: user.photoURL || '',
                     online: true,
                     lastSeen: Date.now(),
-                    createdAt: Date.now(),
-                    friends: {},
-                    friendRequests: {},
-                    sentRequests: {}
+                    createdAt: Date.now()
                 });
+
+                await window.db.ref(`privateUsers/${user.uid}`).set({ email: user.email || '' });
             } else {
-                // Update existing user
                 await window.db.ref(`users/${user.uid}`).update({
                     online: true,
                     lastSeen: Date.now(),
-                    photo: user.photoURL || '',
-                    displayName: user.displayName
+                    photo: user.photoURL || ''
                 });
             }
         }
-        
-        showMessage('Login successful! Redirecting...', 'success');
-        
-        setTimeout(() => {
-            window.location.href = 'chat.html';
-        }, 1500);
-        
+
+        succeeded = true;
+        window.location.href = CHAT_PAGE;
+
     } catch (err) {
         console.error('Google login error:', err);
-        
+
         if (err.code === 'auth/popup-blocked') {
             showMessage('Popup blocked! Please allow popups for this website and try again.', 'error');
-        } else if (err.code === 'auth/cancelled-popup-request') {
+        } else if (err.code === 'auth/cancelled-popup-request' || err.code === 'auth/popup-closed-by-user') {
             showMessage('Login cancelled. Please try again.', 'error');
         } else if (err.code === 'auth/account-exists-with-different-credential') {
             showMessage('An account already exists with the same email address but different sign-in method.', 'error');
@@ -399,29 +479,29 @@ window.googleLogin = async function(event) {
             showMessage('Google login failed: ' + (err.message || 'Unknown error'), 'error');
         }
     } finally {
+        if (!succeeded) window.__signingUp = false;
         setLoading(btn, false, 'Continue with Google');
     }
 };
 
-// ==================== GOOGLE SIGNUP (for signup page) ====================
 window.googleSignUp = window.googleLogin;
 
 // ==================== RESET PASSWORD ====================
-window.resetPassword = async function() {
+window.resetPassword = async function () {
     const email = prompt('Enter your email address to reset your password:');
     if (!email) return;
-    
+
     if (!window.auth) {
         alert('Firebase not initialized. Please refresh the page.');
         return;
     }
-    
+
     try {
         await window.auth.sendPasswordResetEmail(email);
         alert('Password reset email sent! Check your inbox and spam folder.');
     } catch (err) {
         console.error('Reset password error:', err);
-        
+
         let msg = 'Failed to send reset email.';
         if (err.code === 'auth/user-not-found') {
             msg = 'No account found with this email address.';
@@ -434,8 +514,8 @@ window.resetPassword = async function() {
     }
 };
 
-// ==================== LOGOUT FUNCTION (for other pages) ====================
-window.logout = async function() {
+// ==================== LOGOUT ====================
+window.logout = async function () {
     try {
         if (window.auth && window.auth.currentUser && window.db) {
             await window.db.ref(`users/${window.auth.currentUser.uid}`).update({
@@ -443,9 +523,9 @@ window.logout = async function() {
                 lastSeen: Date.now()
             });
         }
-        
+
         await window.auth.signOut();
-        window.location.href = 'index.html';
+        window.location.href = LOGIN_PAGE;
     } catch (err) {
         console.error('Logout error:', err);
         alert('Error logging out. Please try again.');
@@ -453,43 +533,33 @@ window.logout = async function() {
 };
 
 // ==================== AUTO-REDIRECT BASED ON AUTH STATE ====================
-window.auth?.onAuthStateChanged(async (user) => {
-    const currentPath = window.location.pathname;
-    
+window.auth?.onAuthStateChanged((user) => {
+    const page = window.location.pathname.split('/').pop() || '';
+    const isAuthPage = ['', 'index.html', 'login.html', 'signup.html'].includes(page);
+
     if (user) {
-        // User is logged in
-        if (user.emailVerified) {
-            // On login/signup pages, redirect to chat
-            if (currentPath.includes('index.html') || currentPath.includes('signup.html')) {
-                window.location.href = 'chat.html';
-            }
-        } else {
-            // Email not verified - only allow on signup page
-            if (!currentPath.includes('signup.html')) {
-                await window.auth.signOut();
-                window.location.href = 'signup.html';
-            }
+        if (isAuthPage) {
+            if (!window.__signingUp) window.location.href = CHAT_PAGE;
+        } else if (!user.emailVerified) {
+            showVerifyBanner(user);
         }
-    } else {
-        // User is not logged in
-        if (currentPath.includes('chat.html')) {
-            window.location.href = 'index.html';
-        }
+    } else if (!isAuthPage) {
+        window.location.href = LOGIN_PAGE;
     }
 });
 
 // ==================== DEBUG HELPER (remove in production) ====================
-window.debugAuth = function() {
+window.debugAuth = function () {
     console.log('=== Auth Debug Info ===');
     console.log('Firebase initialized:', !!window.firebase);
     console.log('Auth available:', !!window.auth);
     console.log('DB available:', !!window.db);
     console.log('Current user:', window.auth?.currentUser?.email || 'None');
+    console.log('Email verified:', window.auth?.currentUser?.emailVerified);
     console.log('Current path:', window.location.pathname);
     console.log('=======================');
 };
 
-// Log when auth is ready
 window.addEventListener('load', () => {
     setTimeout(() => {
         if (window.auth) {
