@@ -458,6 +458,12 @@ auth.onAuthStateChanged(async user => {
         window.location = "index.html"; 
         return; 
     }
+
+    // NEW: unverified users save nothing. auth.js shows the "verify your email" screen.
+    if (!user.emailVerified) return;
+    try {
+        if (typeof ensureProfile === 'function') await ensureProfile(user); // saves the profile if still missing
+    } catch (e) { console.error(e); }
     
     if (chatBox) {
         chatBox.innerHTML = '<div class="empty-chat"><img src="mate.png"><strong>Your messages</strong><span>Select a user to start chatting</span></div>';

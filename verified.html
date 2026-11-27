@@ -38,8 +38,9 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
     <script src="firebase-config.js"></script>
+    <!-- CHANGED: auth.js is loaded only for ensureProfile(). It does not redirect on this page. -->
+    <script src="auth.js"></script>
     <script>
-        // auth.js is intentionally not loaded here, so no redirect rules interfere.
         const $ = (id) => document.getElementById(id);
 
         function show(icon, title, text, href, label) {
@@ -59,6 +60,7 @@
                 try {
                     await user.reload();
                     await user.getIdToken(true); // so database rules see email_verified
+                    await ensureProfile(user);   // CHANGED: the profile is saved now, after verification
                 } catch (e) { console.warn(e); }
                 show('✅', 'Email verified!', 'Taking you to ChatMate...', 'chat.html', 'Open ChatMate');
                 setTimeout(() => { window.location.href = 'chat.html'; }, 800);
@@ -75,7 +77,10 @@
 
             if (mode !== 'verifyEmail' || !code) {
                 // Opened directly, not from an email
-                if (user && user.emailVerified) return finish(user);
+                if (user) {
+                    await user.reload().catch(() => {}); // CHANGED: a restored session can be out of date
+                    if (user.emailVerified) return finish(user);
+                }
                 return show('ℹ️', 'Nothing to verify', 'Open the link from your verification email.', 'login.html', 'Go to login');
             }
 

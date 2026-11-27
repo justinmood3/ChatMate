@@ -69,12 +69,145 @@ async function sendVerification(user) {
     }
 }
 
+// ==================== PROFILE: saved ONLY after the email is verified ====================
+async function ensureProfile(user) {
+    try {
+        await createProfileOnce(user);
+    } catch (e) {
+        // Two tabs (the waiting tab and verified.html) can run this at the same moment.
+        // If the other one finished the job, that is fine.
+        await new Promise((r) => setTimeout(r, 1500));
+        const done = await window.db.ref(`users/${user.uid}/username`).once('value');
+        if (!done.exists()) throw e;
+    }
+}
+
+async function createProfileOnce(user) {
+    const userRef = window.db.ref(`users/${user.uid}`);
+    if ((await userRef.child('username').once('value')).exists()) return; // real profile already saved
+
+    const temp = (await window.db.ref(`tempVerification/${user.uid}`).once('value')).val() || {};
+    let key = toUsernameKey(temp.username || (user.email || 'user').split('@')[0]);
+
+    const taken = await window.db.ref(`usernames/${key}`).once('value');
+    if (taken.exists() && taken.val() !== user.uid) {
+        // someone else took it while this user was verifying
+        key = (key.slice(0, 21) + '_' + user.uid.slice(0, 8).toLowerCase()).replace(/[^a-z0-9_]/g, '_');
+    }
+    if (!(taken.exists() && taken.val() === user.uid)) {
+        await window.db.ref(`usernames/${key}`).set(user.uid);
+    }
+
+    await userRef.set({
+        username: temp.username || key,
+        displayName: temp.username || key,
+        status: 'Available',
+        photo: user.photoURL || '',
+        online: true,
+        lastSeen: Date.now(),
+        createdAt: Date.now()
+    });
+    await window.db.ref(`privateUsers/${user.uid}`).set({ email: user.email || '' });
+    await window.db.ref(`tempVerification/${user.uid}`).remove();
+}
+
+// Deletes an unverified account and its temporary data
+async function cancelSignup() {
+    const user = window.auth.currentUser;
+    if (!user || user.emailVerified) return; // never delete a verified user
+    try {
+        // Old account that already has a saved profile (friends, messages): never delete it, only sign out
+        const hasProfile = (await window.db.ref(`users/${user.uid}/username`).once('value')).exists();
+        if (hasProfile) { await window.auth.signOut(); return; }
+    } catch (e) { /* ignore */ }
+    try { await window.db.ref(`tempVerification/${user.uid}`).remove(); } catch (e) { /* ignore */ }
+    try { await user.delete(); } catch (e) { await window.auth.signOut(); }
+}
+
+// Waiting screen: blocks the page until verified, then redirects to the home page
+function showWaitingScreen(user) {
+    if (document.getElementById('verifyWait') || !document.body) return;
+    const WAIT_MS = 10 * 60 * 1000; // 10 minutes, change if you want
+    const endAt = Date.now() + WAIT_MS;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'verifyWait';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.75);' +
+        'display:flex;align-items:center;justify-content:center;padding:16px';
+    overlay.innerHTML =
+        '<div style="background:#fff;color:#222;max-width:380px;width:100%;border-radius:12px;padding:24px;text-align:center;font-family:sans-serif">' +
+        '<h3 style="margin:0 0 8px">Verify your email</h3>' +
+        '<p style="margin:0 0 8px">We sent a link to <b id="vwEmail"></b>. Open it, then come back here.</p>' +
+        '<p style="margin:0 0 16px;font-size:13px;color:#666">Time left: <span id="vwTime"></span>. ' +
+        'If it is not verified, your signup is cancelled.</p></div>';
+    const box = overlay.firstChild;
+    box.querySelector('#vwEmail').textContent = user.email || '';
+
+    const btnStyle = 'width:auto;margin:4px;padding:8px 14px;border:none;border-radius:6px;cursor:pointer;background:#667eea;color:#fff';
+    const resend = document.createElement('button');
+    resend.textContent = 'Resend email';
+    resend.style.cssText = btnStyle;
+    const cancel = document.createElement('button');
+    cancel.textContent = 'Cancel signup';
+    cancel.style.cssText = btnStyle.replace('#667eea', '#999');
+    box.append(resend, cancel);
+    document.body.appendChild(overlay);
+
+    let stopWatch = () => {};
+    const ticker = setInterval(async () => {
+        const left = endAt - Date.now();
+        const s = Math.max(0, Math.ceil(left / 1000));
+        const t = document.getElementById('vwTime');
+        if (t) t.textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+        if (left <= 0) {
+            clearInterval(ticker);
+            stopWatch();
+            await cancelSignup();
+            alert('Email was not verified in time. Please sign up again.');
+            window.location.href = 'signup.html';
+        }
+    }, 1000);
+
+    resend.onclick = async () => {
+        let last = 0;
+        try { last = Number(localStorage.getItem('verifyLastSent') || 0); } catch (e) { /* ignore */ }
+        const wait = 60000 - (Date.now() - last);
+        if (wait > 0) { alert('Please wait ' + Math.ceil(wait / 1000) + ' seconds.'); return; }
+        try {
+            await sendVerification(user);
+            try { localStorage.setItem('verifyLastSent', String(Date.now())); } catch (e) { /* ignore */ }
+            alert('Verification email sent. Check your inbox and spam folder.');
+        } catch (e) {
+            alert(e.code === 'auth/too-many-requests' ? 'Too many requests. Try again later.' : 'Could not send email.');
+        }
+    };
+
+    cancel.onclick = async () => {
+        if (!confirm('Cancel signup? Your account will be deleted.')) return;
+        clearInterval(ticker);
+        stopWatch();
+        await cancelSignup();
+        window.location.href = 'signup.html';
+    };
+
+    stopWatch = watchVerification(user, async () => {
+        clearInterval(ticker);
+        try {
+            await ensureProfile(user); // the first time anything is saved
+            window.location.href = CHAT_PAGE;
+        } catch (e) {
+            console.error('Profile save failed:', e);
+            showMessage('Could not save your profile. Please log in again.', 'error');
+        }
+    });
+}
+
 // ==================== SIGNUP FUNCTION ====================
 window.signup = async function (event) {
     const btn = event?.target;
     setLoading(btn, true, 'Sign Up');
 
-    window.__signingUp = true; // stops the auth listener redirecting before the profile is saved
+    window.__signingUp = true; // stops the auth listener redirecting before signup finishes
     let createdUser = null;
     let succeeded = false;
 
@@ -121,38 +254,18 @@ window.signup = async function (event) {
         const user = userCredential.user;
         createdUser = user;
 
-        // Claim the username (fails if someone grabbed it in the meantime)
-        try {
-            await window.db.ref(`usernames/${usernameKey}`).set(user.uid);
-        } catch (e) {
-            console.error('Username claim failed:', e);
-            await user.delete();
-            createdUser = null;
-            showMessage('Username already taken. Please choose another.', 'error');
-            return;
-        }
-
-        // Public profile (no email here)
-        await window.db.ref(`users/${user.uid}`).set({
+        // Only a temporary note. NO profile is saved until the email is verified.
+        await window.db.ref(`tempVerification/${user.uid}`).set({
             username: username,
-            displayName: username,
-            status: 'Available',
-            photo: '',
-            online: true,
-            lastSeen: Date.now(),
             createdAt: Date.now()
         });
 
-        // Private data
-        await window.db.ref(`privateUsers/${user.uid}`).set({ email: email });
-
-        // Send the verification email in the background; don't make signup wait for it
-        sendVerification(user).catch((e) => console.warn('Verification send failed:', e.code));
+        await sendVerification(user);
         try { localStorage.setItem('verifyLastSent', String(Date.now())); } catch (e) { /* ignore */ }
 
         createdUser = null; // success, nothing to clean up
         succeeded = true;
-        window.location.href = CHAT_PAGE;
+        showWaitingScreen(user);
 
     } catch (err) {
         console.error('Signup error:', err);
@@ -175,7 +288,7 @@ window.signup = async function (event) {
         // Clean up only the account created during this attempt
         if (createdUser) {
             try {
-                await window.db.ref(`usernames/${getValue('username').toLowerCase()}`).remove();
+                await window.db.ref(`tempVerification/${createdUser.uid}`).remove();
             } catch (e) { /* ignore */ }
             try {
                 await createdUser.delete();
@@ -250,7 +363,8 @@ function watchVerification(user, onVerified) {
 
 // Kept for an optional verify screen on signup.html
 function startEmailVerificationChecker(user) {
-    watchVerification(user, () => {
+    watchVerification(user, async () => {
+        try { await ensureProfile(user); } catch (e) { console.error('Profile save failed:', e); }
         showMessage('Email verified! Redirecting...', 'success');
         setTimeout(() => { window.location.href = CHAT_PAGE; }, 500);
     });
@@ -268,6 +382,7 @@ window.checkVerificationStatus = async function (event) {
         await user.reload();
         if (user.emailVerified) {
             await user.getIdToken(true);
+            await ensureProfile(user);
             window.location.href = CHAT_PAGE;
         } else {
             showMessage('Email not verified yet. Please check your inbox (and spam folder).', 'info');
@@ -301,77 +416,25 @@ window.resendVerificationEmail = async function (event) {
     }
 };
 
-// ==================== VERIFY BANNER (shown on app pages) ====================
-function showVerifyBanner(user) {
-    if (document.getElementById('verifyBanner') || !document.body) return;
-
-    const bar = document.createElement('div');
-    bar.id = 'verifyBanner';
-    bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#fff3cd;color:#664d03;' +
-        'padding:8px 16px;font-size:14px;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap';
-    bar.innerHTML = '<span>Verify your email to unlock messaging and friend requests.</span>';
-
-    const btnStyle = 'width:auto;margin:0;padding:6px 12px;border:none;border-radius:6px;cursor:pointer;background:#667eea;color:#fff';
-
-    const resend = document.createElement('button');
-    resend.textContent = 'Resend email';
-    resend.style.cssText = btnStyle;
-    resend.onclick = async () => {
-        let last = 0;
-        try { last = Number(localStorage.getItem('verifyLastSent') || 0); } catch (e) { /* ignore */ }
-        const wait = 60000 - (Date.now() - last);
-        if (wait > 0) {
-            alert('Please wait ' + Math.ceil(wait / 1000) + ' seconds before resending.');
-            return;
-        }
-        try {
-            await sendVerification(user);
-            try { localStorage.setItem('verifyLastSent', String(Date.now())); } catch (e) { /* ignore */ }
-            alert('Verification email sent. Check your inbox and spam folder.');
-        } catch (e) {
-            alert(e.code === 'auth/too-many-requests'
-                ? 'Too many requests. Please try again later.'
-                : 'Could not send email: ' + e.code);
-        }
-    };
-
-    const done = document.createElement('button');
-    done.textContent = "I've verified";
-    done.style.cssText = btnStyle;
-    done.onclick = async () => {
-        await user.reload();
-        if (user.emailVerified) {
-            await user.getIdToken(true);
-            bar.remove();
-        } else {
-            alert('Not verified yet.');
-        }
-    };
-
-    bar.append(resend, done);
-    document.body.prepend(bar);
-
-    watchVerification(user, () => {
-        bar.remove();
-        showMessage('Email verified! Messaging is unlocked.', 'success');
-    });
-}
-
 // ==================== LOGIN FUNCTION ====================
 window.login = async function (event) {
     const btn = event?.target;
     setLoading(btn, true, 'Login');
 
     try {
+        window.__signingUp = true; // stops the auth listener redirecting before the checks finish
+
         const email = getValue('email');
         const password = getValue('password');
 
         if (!email || !password) {
+            window.__signingUp = false;
             showMessage('Please enter both email and password', 'error');
             return;
         }
 
         if (!window.auth) {
+            window.__signingUp = false;
             showMessage('Firebase not initialized. Please refresh the page.', 'error');
             return;
         }
@@ -379,17 +442,24 @@ window.login = async function (event) {
         const userCredential = await window.auth.signInWithEmailAndPassword(email, password);
         const user = userCredential.user;
 
-        if (window.db) {
-            await window.db.ref(`users/${user.uid}`).update({
-                online: true,
-                lastSeen: Date.now()
-            });
+        await user.reload();
+        if (!user.emailVerified) {
+            showWaitingScreen(user); // nothing is written to the database
+            return;
         }
+
+        await user.getIdToken(true);  // so the rules see email_verified
+        await ensureProfile(user);    // only creates it if it is missing
+        await window.db.ref(`users/${user.uid}`).update({
+            online: true,
+            lastSeen: Date.now()
+        });
 
         showMessage('Login successful! Redirecting...', 'success');
         window.location.href = CHAT_PAGE;
 
     } catch (err) {
+        window.__signingUp = false;
         console.error('Login error:', err);
 
         let msg = 'Login failed. Please try again.';
@@ -535,13 +605,17 @@ window.logout = async function () {
 // ==================== AUTO-REDIRECT BASED ON AUTH STATE ====================
 window.auth?.onAuthStateChanged((user) => {
     const page = window.location.pathname.split('/').pop() || '';
+    if (page === 'verified.html') return; // verified.html runs its own flow, no redirects here
     const isAuthPage = ['', 'index.html', 'login.html', 'signup.html'].includes(page);
 
     if (user) {
-        if (isAuthPage) {
-            if (!window.__signingUp) window.location.href = CHAT_PAGE;
-        } else if (!user.emailVerified) {
-            showVerifyBanner(user);
+        if (!user.emailVerified) {
+            // Not verified: wait here. Nothing is saved and the app stays blocked.
+            if (!window.__signingUp && page !== 'verified.html') showWaitingScreen(user);
+        } else if (isAuthPage && !window.__signingUp) {
+            ensureProfile(user)
+                .catch((e) => console.error(e))
+                .finally(() => { window.location.href = CHAT_PAGE; });
         }
     } else if (!isAuthPage) {
         window.location.href = LOGIN_PAGE;

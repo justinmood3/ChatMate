@@ -377,6 +377,33 @@ app.delete('/api/file/:chatId/:fileId', async (req, res) => {
     }
 });
 
+// ==================== CLEAN UP UNVERIFIED SIGN-UPS (NEW) ====================
+// Deletes sign-ups that never verified their email and never saved a profile (older than 1 hour).
+// Old accounts that already have a profile (friends, messages) are never deleted.
+async function cleanupUnverified(maxAgeMs = 60 * 60 * 1000) {
+    try {
+        let pageToken;
+        do {
+            const res = await admin.auth().listUsers(1000, pageToken);
+            for (const u of res.users) {
+                const isPassword = u.providerData.some(p => p.providerId === 'password');
+                const age = Date.now() - new Date(u.metadata.creationTime).getTime();
+                if (!isPassword || u.emailVerified || age < maxAgeMs) continue;
+
+                const hasProfile = (await db.ref(`users/${u.uid}/username`).once('value')).exists();
+                if (hasProfile) continue;
+
+                await db.ref(`tempVerification/${u.uid}`).remove();
+                await admin.auth().deleteUser(u.uid);
+                console.log(`🧹 Deleted unverified sign-up ${u.uid}`);
+            }
+            pageToken = res.pageToken;
+        } while (pageToken);
+    } catch (e) {
+        console.error('Cleanup failed:', e);
+    }
+}
+
 // ==================== SERVE FRONTEND ====================
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'login.html'));
@@ -395,6 +422,10 @@ app.listen(PORT, () => {
     console.log('   POST /api/upload-profile   - Upload profile photo');
     console.log('   GET  /api/file/:chatId/:fileId - Get file info');
     console.log('   DELETE /api/file/:chatId/:fileId - Delete file');
+
+    // NEW: remove never-verified sign-ups now and every 30 minutes
+    cleanupUnverified();
+    setInterval(cleanupUnverified, 30 * 60 * 1000);
 });
 
 // Error handling
